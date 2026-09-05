@@ -2,6 +2,8 @@
 // Secure server-side execution with Google Gemini 3.8 Flash
 // Server-only GEMINI_API_KEY (never exposed to browser clients)
 
+export const maxDuration = 60; // Allow up to 60s execution limit for Vercel Serverless Functions
+
 interface ChatRequestBody {
   message: string;
   conversationHistory?: Array<{ sender: 'user' | 'assistant'; text: string }>;
@@ -77,6 +79,77 @@ STRICT CLINICAL SAFETY AND ACCURACY RULES:
    - Explain complex laboratory acronyms simply when asked (e.g., HbA1c, eGFR, CRP).
    - Answer directly and avoid excessive boilerplate.`;
 
+/**
+ * Safely parse incoming request body from multiple potential Vercel serverless formats.
+ */
+async function parseRequestBody(req: any): Promise<ChatRequestBody> {
+  if (req.body) {
+    if (typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
+      return req.body as ChatRequestBody;
+    }
+    if (typeof req.body === 'string') {
+      return JSON.parse(req.body);
+    }
+    if (Buffer.isBuffer(req.body)) {
+      return JSON.parse(req.body.toString('utf-8'));
+    }
+  }
+
+  return new Promise((resolve, reject) => {
+    let raw = '';
+    req.on('data', (chunk: any) => {
+      raw += chunk;
+    });
+    req.on('end', () => {
+      try {
+        resolve(raw ? JSON.parse(raw) : ({} as ChatRequestBody));
+      } catch (e) {
+        reject(e);
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+/**
+ * Executes fetch with transient error retry and exponential backoff to handle cold starts & TLS handshake delays.
+ */
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries: number = 2
+): Promise<Response> {
+  let attempt = 0;
+  let lastError: any = null;
+
+  while (attempt <= maxRetries) {
+    try {
+      const response = await fetch(url, options);
+      // Retry transient HTTP status codes (429 rate limit, 500, 502, 503, 504 gateway errors)
+      if ([429, 500, 502, 503, 504].includes(response.status) && attempt < maxRetries) {
+        const delayMs = 600 * Math.pow(2, attempt) + Math.floor(Math.random() * 200);
+        console.warn(`[api/chat] Gemini API returned transient HTTP ${response.status}. Retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        attempt++;
+        continue;
+      }
+      return response;
+    } catch (err: any) {
+      lastError = err;
+      if (attempt < maxRetries) {
+        const delayMs = 600 * Math.pow(2, attempt) + Math.floor(Math.random() * 200);
+        console.warn(`[api/chat] Gemini API network fetch failed (${err?.message || err}). Retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        attempt++;
+        continue;
+      }
+      throw lastError;
+    }
+  }
+
+  throw lastError || new Error('Failed to reach Gemini API after retries');
+}
+
 export default async function handler(req: any, res: any) {
   // CORS configuration for local development and Vercel domains
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -108,7 +181,7 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const body: ChatRequestBody = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    const body = await parseRequestBody(req);
     const { message, conversationHistory = [], patientContext, isDemo, role = 'patient' } = body;
 
     if (!message || typeof message !== 'string' || !message.trim()) {
@@ -119,7 +192,7 @@ export default async function handler(req: any, res: any) {
     // Guard against excessive message length
     const cleanMessage = message.trim().slice(0, 1000);
 
-    // Format context for the Gemini model
+    // Format structured clinical context for Gemini
     let contextPrompt = '';
     if (!patientContext || !patientContext.hasRecords) {
       contextPrompt = `PATIENT CONTEXT:
@@ -156,18 +229,15 @@ ${(patientContext.conflicts || []).map(c => `• ${c.title}: ${c.description} [S
     // Build Gemini multi-turn contents array with conversation history
     const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
 
-    // System instruction injected into the first user turn alongside patient context
-    const initialSystemContext = `${SYSTEM_INSTRUCTION}\n\n====================\n${contextPrompt}\n====================`;
-
     // Limit conversation history to the most recent 6 messages to preserve context token budget
     const recentHistory = conversationHistory.slice(-6);
 
     if (recentHistory.length > 0) {
-      // First exchange includes context
+      // First turn pairs patient clinical context with first message
       const firstMsg = recentHistory[0];
       contents.push({
         role: firstMsg.sender === 'user' ? 'user' : 'model',
-        parts: [{ text: `${initialSystemContext}\n\nUser Question: ${firstMsg.text}` }]
+        parts: [{ text: `[PATIENT CLINICAL RECORD CONTEXT]\n${contextPrompt}\n\n[USER QUESTION]\n${firstMsg.text}` }]
       });
 
       for (let i = 1; i < recentHistory.length; i++) {
@@ -184,10 +254,10 @@ ${(patientContext.conflicts || []).map(c => `• ${c.title}: ${c.description} [S
         parts: [{ text: cleanMessage }]
       });
     } else {
-      // First turn
+      // First single turn
       contents.push({
         role: 'user',
-        parts: [{ text: `${initialSystemContext}\n\nCurrent User Question: ${cleanMessage}` }]
+        parts: [{ text: `[PATIENT CLINICAL RECORD CONTEXT]\n${contextPrompt}\n\n[USER QUESTION]\n${cleanMessage}` }]
       });
     }
 
@@ -196,6 +266,9 @@ ${(patientContext.conflicts || []).map(c => `• ${c.title}: ${c.description} [S
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
     const geminiPayload = {
+      systemInstruction: {
+        parts: [{ text: SYSTEM_INSTRUCTION }]
+      },
       contents,
       generationConfig: {
         temperature: 0.3,
@@ -204,19 +277,19 @@ ${(patientContext.conflicts || []).map(c => `• ${c.title}: ${c.description} [S
       }
     };
 
-    const response = await fetch(apiUrl, {
+    const response = await fetchWithRetry(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(geminiPayload)
-    });
+    }, 2);
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`Gemini API returned error status ${response.status}:`, errorText);
+      console.error(`[api/chat] Gemini API returned error status ${response.status}:`, errorText);
       res.status(502).json({
         error: `Gemini API responded with status ${response.status}`,
         details: errorText,
-        text: 'MedLens AI encountered a temporary issue while communicating with the generative model. Your medical records remain intact and secure.'
+        text: 'MedLens AI encountered a temporary issue communicating with the generative model. Your medical records remain intact and secure.'
       });
       return;
     }

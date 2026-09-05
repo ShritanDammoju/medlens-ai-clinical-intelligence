@@ -33,7 +33,7 @@ export const AIInsightsView: React.FC = () => {
               <div className="flex flex-wrap items-center gap-2.5">
                 <h1 className="text-xl sm:text-2xl font-bold text-white">AI Clinical Information Intelligence</h1>
                 <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/30">
-                  {aiMode === 'Gemini' ? 'Online Gemini 1.5 Engine' : 'Deterministic Local AI Engine'}
+                  {aiMode === 'Gemini' ? 'Online Gemini 3.8 Flash Engine' : 'Deterministic Local AI Engine'}
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">

@@ -29,7 +29,7 @@ export const SafetyBanner: React.FC = () => {
             <Sparkles className="w-3 h-3 text-sky-400" />
             <span>AI Mode:</span>
             <span className={`font-semibold ${aiMode === 'Gemini' ? 'text-emerald-400' : 'text-sky-300'}`}>
-              {aiMode === 'Gemini' ? 'Gemini 1.5' : 'Demo (Deterministic Engine)'}
+              {aiMode === 'Gemini' ? 'Gemini 3.8 Flash' : 'Demo (Deterministic Engine)'}
             </span>
           </div>
         </div>

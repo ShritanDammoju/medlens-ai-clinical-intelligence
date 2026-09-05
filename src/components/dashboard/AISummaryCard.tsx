@@ -21,7 +21,7 @@ export const AISummaryCard: React.FC<Props> = ({ onViewInsights }) => {
             <div className="flex items-center gap-2">
               <h3 className="font-bold text-slate-900 text-sm sm:text-base">AI Clinical Information Summary</h3>
               <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-200">
-                {aiMode === 'Gemini' ? 'Gemini 1.5' : 'Local Deterministic AI'}
+                {aiMode === 'Gemini' ? 'Gemini 3.8 Flash' : 'Local Deterministic AI'}
               </span>
             </div>
             <p className="text-xs text-slate-500">Non-diagnostic synthesis of uploaded records</p>

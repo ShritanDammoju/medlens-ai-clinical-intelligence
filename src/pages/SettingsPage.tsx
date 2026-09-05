@@ -59,7 +59,7 @@ export const SettingsPage: React.FC = () => {
             "For this demo, information is stored locally in the browser. Do not upload real patient information."
           </p>
           <p className="text-xs text-slate-500">
-            Medical records, laboratory values, and patient demographics are stored strictly inside your web browser�s HTML5 LocalStorage sandbox. No records are transmitted to third-party databases, cloud buckets, or external ad trackers.
+            Medical records, laboratory values, and patient demographics are stored strictly inside your web browser's HTML5 LocalStorage sandbox. No records are transmitted to third-party databases, cloud buckets, or external ad trackers.
           </p>
         </div>
       </div>

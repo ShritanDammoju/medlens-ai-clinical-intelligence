@@ -9,6 +9,7 @@ import {
   Allergy,
   ChatMessage
 } from '../types/medical';
+import { auth } from '../firebase/config';
 
 export type AIMode = 'Gemini' | 'Demo';
 
@@ -129,6 +130,7 @@ export function buildStructuredPatientContext(
 /**
  * Dispatches the user question and structured patient context to the secure backend endpoint /api/chat.
  * Employs Gemini 3.8 Flash server-side without exposing API keys to the browser.
+ * Includes automatic client-side retry to smoothly overcome Vercel/Google cold starts.
  */
 export async function sendChatMessageToAI(
   message: string,
@@ -139,26 +141,67 @@ export async function sendChatMessageToAI(
 ): Promise<ChatMessage> {
   const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+  // Retrieve Firebase ID token if user is authenticated
+  let idToken: string | undefined;
   try {
+    idToken = await auth.currentUser?.getIdToken();
+  } catch {
+    // Optional for demo mode or offline testing
+  }
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json'
+  };
+  if (idToken) {
+    headers['Authorization'] = `Bearer ${idToken}`;
+  }
+
+  const payload = {
+    message,
+    conversationHistory,
+    patientContext,
+    isDemo,
+    role
+  };
+
+  /**
+   * Internal executor with transparent single retry on transient cold start / gateway errors
+   */
+  async function executeRequest(attempt: number = 0): Promise<Response> {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s network timeout
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s network timeout
 
-    const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        message,
-        conversationHistory,
-        patientContext,
-        isDemo,
-        role
-      }),
-      signal: controller.signal
-    });
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
 
-    clearTimeout(timeoutId);
+      // If server returned a transient cold-start gateway error (502/503/504), retry once silently
+      if ([502, 503, 504].includes(res.status) && attempt === 0) {
+        console.warn(`[aiService] /api/chat returned status ${res.status}. Retrying once after cold start delay...`);
+        await new Promise(resolve => setTimeout(resolve, 800));
+        return executeRequest(1);
+      }
+
+      return res;
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      // If network dropped or aborted during cold start on first attempt, retry once
+      if (attempt === 0) {
+        console.warn(`[aiService] /api/chat network error (${err?.message || err}). Retrying once after delay...`);
+        await new Promise(resolve => setTimeout(resolve, 800));
+        return executeRequest(1);
+      }
+      throw err;
+    }
+  }
+
+  try {
+    const res = await executeRequest(0);
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
@@ -188,7 +231,7 @@ export async function sendChatMessageToAI(
       id: `bot-${Date.now()}`,
       sender: 'assistant',
       text: isTimeout 
-        ? 'MedLens AI request timed out. Please check your network connection and click Retry.' 
+        ? 'MedLens AI request timed out during initialization. Please check your connection and click Retry.' 
         : 'MedLens AI is temporarily unavailable. Your saved medical record is still available.',
       timestamp
     };
