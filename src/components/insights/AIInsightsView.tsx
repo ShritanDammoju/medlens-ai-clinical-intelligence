@@ -105,12 +105,25 @@ export const AIInsightsView: React.FC = () => {
                       Reconciled by Clinician
                     </span>
                   ) : (
-                    <button
-                      onClick={() => resolveConflict(conflict.id)}
-                      className="px-3 py-1 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs cursor-pointer"
-                    >
-                      Mark Reconciled
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => openSourceInspector({
+                          sourceName: conflict.itemA.source,
+                          sourceType: 'report',
+                          provenance: 'Extracted from Report',
+                          snippet: `${conflict.itemA.label}: ${conflict.itemA.value}`
+                        })}
+                        className="px-3 py-1 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs cursor-pointer"
+                      >
+                        Review
+                      </button>
+                      <button
+                        onClick={() => resolveConflict(conflict.id)}
+                        className="px-3 py-1 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs cursor-pointer"
+                      >
+                        Acknowledge
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -118,8 +131,14 @@ export const AIInsightsView: React.FC = () => {
                   {conflict.description}
                 </p>
 
+                {/* Non-deterministic conflict disclaimer */}
+                <div className="mt-2.5 p-2 rounded-xl bg-amber-100/60 border border-amber-300/80 text-[11px] text-amber-900 font-medium flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                  <span><strong>MedLens Decision Notice:</strong> MedLens does not determine which source is clinically correct. Please review both sources with your healthcare provider.</span>
+                </div>
+
                 {/* Comparison items A vs B */}
-                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl bg-white border border-slate-200/80 text-xs">
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl bg-white border border-slate-200/80 text-xs">
                   <div className="space-y-1">
                     <span className="text-slate-400 font-medium block">Source Record A:</span>
                     <span className="font-bold text-slate-900 block">{conflict.itemA.label}</span>

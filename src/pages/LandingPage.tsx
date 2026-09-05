@@ -138,20 +138,38 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onLaunchDemo }) => {
             Transform fragmented diagnostic reports, clinical summaries, and patient-reported symptoms into a structured, chronologically unified health profile with strict source-explicit reference range awareness and complete human-in-the-loop verification.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+          {/* Trust Value Badges */}
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-2 text-xs font-semibold text-slate-300">
+            <span className="px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700/60">For Patients & Clinicians</span>
+            <span className="px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-800/60 text-emerald-300">AI-Assisted • Not AI-Diagnosed</span>
+            <span className="px-3 py-1 rounded-full bg-sky-950/60 border border-sky-800/60 text-sky-300">Human Verification Protocol</span>
+            <span className="px-3 py-1 rounded-full bg-amber-950/60 border border-amber-800/60 text-amber-300">Source-Aware Provenance</span>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-3">
             <button
-              onClick={onEnterApp}
-              className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold text-sm sm:text-base shadow-xl shadow-sky-500/25 transition-all hover:scale-[1.02] cursor-pointer flex items-center justify-center gap-2"
+              onClick={() => openAuthModal('patient')}
+              className="w-full sm:w-auto px-7 py-3.5 rounded-2xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold text-sm sm:text-base shadow-xl shadow-sky-500/25 transition-all hover:scale-[1.02] cursor-pointer flex items-center justify-center gap-2"
             >
-              <span>Get Started with MedLens</span>
-              <ArrowRight className="w-5 h-5" />
+              <Users className="w-5 h-5 text-slate-950" />
+              <span>Get Started as Patient</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={() => openAuthModal('doctor')}
+              className="w-full sm:w-auto px-7 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-sky-400 font-extrabold text-sm sm:text-base border border-sky-600/40 shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
+            >
+              <Stethoscope className="w-5 h-5 text-sky-400" />
+              <span>Doctor Portal</span>
             </button>
 
             <button
               onClick={onLaunchDemo}
-              className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm sm:text-base border border-slate-700 shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
+              className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white font-bold text-sm sm:text-base border border-slate-700/80 shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
             >
-              <span>Explore Interactive Demo</span>
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <span>Explore Demo</span>
             </button>
           </div>
 
@@ -210,16 +228,44 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onLaunchDemo }) => {
         </div>
       </section>
 
-      {/* 6-Stage Clinical Processing Pipeline */}
+      {/* 10-Stage Clinical Processing Pipeline */}
       <section className="py-20 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
         <div className="text-center space-y-3">
-          <span className="text-xs font-mono font-bold text-sky-400 uppercase tracking-widest">System Architecture</span>
+          <span className="text-xs font-mono font-bold text-sky-400 uppercase tracking-widest">End-to-End Clinical Intelligence Architecture</span>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-            How MedLens Works: 6-Stage Clinical Intelligence Pipeline
+            The 10-Stage Clinical Intelligence Pipeline
           </h2>
-          <p className="text-slate-400 text-sm sm:text-base max-w-2xl mx-auto">
-            From raw multimodal ingestion to human clinician verification, every step prioritizes patient safety and reference fidelity.
+          <p className="text-slate-300 text-sm sm:text-base max-w-3xl mx-auto font-medium">
+            "MedLens doesn't just chat with medical documents. It transforms fragmented reports into a structured, traceable, and reviewable clinical record with validation, provenance, conflict detection, and clinician verification."
           </p>
+        </div>
+
+        {/* 10-Step Interactive Visual Flowchart */}
+        <div className="p-6 rounded-3xl bg-slate-950/80 border border-slate-800 shadow-2xl space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-800 text-xs font-mono text-slate-400">
+            <span>PIPELINE SEQUENCE: INPUT → VERIFICATION</span>
+            <span className="text-emerald-400 font-bold">100% TRACEABLE LINEAGE</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-center text-xs">
+            {[
+              { num: '01', title: 'INPUT', sub: 'PDF / Image / Text', color: 'border-sky-500/40 text-sky-400 bg-sky-950/30' },
+              { num: '02', title: 'EXTRACTION', sub: 'Tokenization & OCR', color: 'border-sky-500/40 text-sky-400 bg-sky-950/30' },
+              { num: '03', title: 'VALIDATION', sub: 'Completeness check', color: 'border-teal-500/40 text-teal-400 bg-teal-950/30' },
+              { num: '04', title: 'NORMALIZATION', sub: 'Clinical aliases', color: 'border-teal-500/40 text-teal-400 bg-teal-950/30' },
+              { num: '05', title: 'REF-BOUND', sub: 'Source intervals only', color: 'border-amber-500/40 text-amber-400 bg-amber-950/30' },
+              { num: '06', title: 'CONFLICTS', sub: 'Cross-record scan', color: 'border-rose-500/40 text-rose-400 bg-rose-950/30' },
+              { num: '07', title: 'GAPS & MISSING', sub: 'Omission alerts', color: 'border-amber-500/40 text-amber-400 bg-amber-950/30' },
+              { num: '08', title: 'PROVENANCE', sub: 'Immutable lineage', color: 'border-indigo-500/40 text-indigo-400 bg-indigo-950/30' },
+              { num: '09', title: 'AI SUMMARY', sub: 'Gemini 3.8 Flash', color: 'border-purple-500/40 text-purple-400 bg-purple-950/30' },
+              { num: '10', title: 'HUMAN REVIEW', sub: 'Clinician verification', color: 'border-emerald-500/40 text-emerald-400 bg-emerald-950/30' }
+            ].map((step, idx) => (
+              <div key={idx} className={`p-3 rounded-2xl border ${step.color} flex flex-col justify-between space-y-1`}>
+                <span className="text-[10px] font-mono opacity-75">{step.num}</span>
+                <span className="font-extrabold text-[11px] tracking-wide">{step.title}</span>
+                <span className="text-[10px] opacity-80">{step.sub}</span>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

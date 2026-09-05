@@ -277,6 +277,7 @@ export const StructuredPatientRecord: React.FC<Props> = ({ onNavigateTab, onUplo
                 <th className="pb-3 pr-4">Test Name</th>
                 <th className="pb-3 px-3">Result / Value</th>
                 <th className="pb-3 px-3">Source Ref Range</th>
+                <th className="pb-3 px-3">Report Date</th>
                 <th className="pb-3 px-3 text-center">Status</th>
                 <th className="pb-3 px-3">Source & Lineage</th>
                 <th className="pb-3 px-3 text-center">Verification</th>
@@ -307,6 +308,9 @@ export const StructuredPatientRecord: React.FC<Props> = ({ onNavigateTab, onUplo
                         Reference range not provided in source
                       </span>
                     )}
+                  </td>
+                  <td className="py-3.5 px-3 text-xs text-slate-600 font-mono whitespace-nowrap">
+                    {lab.date || 'Unrecorded'}
                   </td>
                   <td className="py-3.5 px-3 text-center">
                     <StatusBadge status={lab.status} explanation={lab.statusExplanation} />
