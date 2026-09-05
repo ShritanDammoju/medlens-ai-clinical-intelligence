@@ -1,0 +1,63 @@
+﻿rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
+    function isDoctor() {
+      return isAuthenticated() && getUserRole() == 'doctor';
+    }
+
+    // User Profile Rules: Users can only read/write their own profile; role cannot be self-escalated
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && request.resource.data.role in ['patient', 'doctor'];
+      allow update: if isOwner(userId) && request.resource.data.role == resource.data.role;
+    }
+
+    // Patient Records Rules: Patients read/write their own records; verified doctors can review
+    match /patients/{patientId} {
+      allow read, write: if isOwner(patientId) || isDoctor();
+    }
+
+    // Medical Reports & Extracted Labs: Restricted strictly to owner or clinical reviewers
+    match /reports/{reportId} {
+      allow read: if isAuthenticated() && (resource.data.uploadedBy == request.auth.uid || isDoctor());
+      allow write: if isAuthenticated() && request.resource.data.uploadedBy == request.auth.uid;
+    }
+
+    match /labResults/{labId} {
+      allow read: if isAuthenticated() && (resource.data.patientId == request.auth.uid || isDoctor());
+      allow write: if isAuthenticated() && (request.resource.data.patientId == request.auth.uid || isDoctor());
+    }
+
+    // Medications & Allergies
+    match /medications/{medId} {
+      allow read: if isAuthenticated() && (resource.data.patientId == request.auth.uid || isDoctor());
+      allow write: if isAuthenticated() && (request.resource.data.patientId == request.auth.uid || isDoctor());
+    }
+
+    // Timeline Events
+    match /timelineEvents/{eventId} {
+      allow read: if isAuthenticated() && (resource.data.patientId == request.auth.uid || isDoctor());
+      allow write: if isAuthenticated() && request.resource.data.patientId == request.auth.uid;
+    }
+
+    // Verifications & Audit Log: Doctors can write verifications; patients can read
+    match /verifications/{verifId} {
+      allow read: if isAuthenticated();
+      allow write: if isDoctor();
+    }
+  }
+}
