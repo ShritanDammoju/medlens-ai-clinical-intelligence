@@ -76,7 +76,7 @@ export const MedLensChatbot: React.FC = () => {
     setIsTyping(true);
     setLastErrorQuery(null);
 
-    // Build structured patient context strictly from current authorized data
+    // Build compact, query-relevant structured patient context
     const patientContext = buildStructuredPatientContext(
       currentPatient,
       state.labs,
@@ -84,16 +84,17 @@ export const MedLensChatbot: React.FC = () => {
       state.reports,
       state.conditions,
       state.allergies,
-      state.conflicts
+      state.conflicts,
+      query
     );
 
-    // Prepare recent conversation history (last 6 messages)
+    // Prepare compact recent conversation history (last 4 turns, with text capped)
     const history = messages
       .filter(m => m.id !== 'msg-welcome')
-      .slice(-6)
+      .slice(-4)
       .map(m => ({
         sender: m.sender,
-        text: m.text
+        text: m.sender === 'assistant' ? m.text.slice(0, 300) : m.text.slice(0, 500)
       }));
 
     try {
@@ -277,13 +278,20 @@ export const MedLensChatbot: React.FC = () => {
               </div>
             ))}
 
-            {/* AI is generating state */}
+            {/* Immediate Thinking state */}
             {isTyping && (
-              <div className="flex gap-2.5 items-center bg-white p-3 rounded-2xl border border-sky-200 text-sky-900 text-xs shadow-xs animate-pulse">
-                <Loader2 className="w-4 h-4 animate-spin text-sky-600 shrink-0" />
-                <div className="flex flex-col">
-                  <span className="font-bold">MedLens Assistant is analyzing...</span>
-                  <span className="text-[11px] text-slate-500">Formulating real-time response with Gemini 3.8 Flash</span>
+              <div className="flex gap-2.5 items-start animate-in fade-in duration-150">
+                <div className="w-7 h-7 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs shadow-xs">
+                  <Bot className="w-4 h-4" />
+                </div>
+                <div className="bg-white border border-sky-200 text-slate-800 rounded-2xl rounded-bl-xs p-3.5 shadow-xs max-w-[85%] space-y-1">
+                  <div className="flex items-center gap-2 text-sky-700 font-bold text-xs">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-600 shrink-0" />
+                    <span className="tracking-wide">Thinking...</span>
+                  </div>
+                  <p className="text-slate-500 text-[11px] leading-relaxed">
+                    Analyzing clinical records with Gemini 3.8 Flash...
+                  </p>
                 </div>
               </div>
             )}

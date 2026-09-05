@@ -42,8 +42,9 @@ export interface StructuredPatientContext {
 }
 
 /**
- * Builds a structured, non-bloated clinical context payload for the generative model.
- * Strictly preserves source reference ranges, verbatim tokens, and provenance.
+ * Builds a compact, relevant clinical context payload for the generative model.
+ * Prioritizes records and biomarkers relevant to the user's specific query while
+ * always preserving clinical safety highlights (abnormal values and conflicts).
  */
 export function buildStructuredPatientContext(
   patient: Patient | null,
@@ -52,7 +53,8 @@ export function buildStructuredPatientContext(
   reports: MedicalReport[] = [],
   conditions: Condition[] = [],
   allergies: Allergy[] = [],
-  conflicts: DataConflict[] = []
+  conflicts: DataConflict[] = [],
+  userQuery?: string
 ): StructuredPatientContext {
   if (!patient) {
     return {
@@ -76,21 +78,73 @@ export function buildStructuredPatientContext(
   const patientConflicts = conflicts.filter(c => c.patientId === patient.id);
 
   const unverifiedCount = patientLabs.filter(l => l.verificationStatus === 'needs_review' || l.verificationStatus === 'unverified').length;
-
   const hasRecords = patientLabs.length > 0 || patientReports.length > 0 || patientMeds.length > 0;
+
+  // Query-aware compact filtering
+  const queryLower = (userQuery || '').toLowerCase().trim();
+  const queryWords = queryLower.split(/\s+/).filter(w => w.length >= 3);
+
+  // Intent classification
+  const isMedsQuery = /med|drug|prescription|dose|dosage|pill|tablet|take|taking|aspirin|lisinopril|metformin|atorvastatin|statin/.test(queryLower);
+  const isReportsQuery = /report|document|upload|date|scan|pdf|file|history|timeline/.test(queryLower);
+  const isConflictsQuery = /conflict|discrepancy|mismatch|differ|unverified|review|verify|resolve/.test(queryLower);
+  const isLabsQuery = /lab|result|test|blood|hemoglobin|iron|ferritin|glucose|hba1c|cholesterol|egfr|creatinine|alt|ast|tsh|platelet|abnormal|high|low|value|level/.test(queryLower);
+
+  // Labs selection: always include abnormal labs for clinical safety + any matching user terms
+  let selectedLabs = patientLabs;
+  if (userQuery && userQuery.trim().length > 0) {
+    const matchingLabs = patientLabs.filter(l => {
+      const nameMatch = queryWords.some(w => 
+        l.testName.toLowerCase().includes(w) || 
+        (l.originalTestName && l.originalTestName.toLowerCase().includes(w))
+      );
+      return nameMatch;
+    });
+
+    const abnormalLabs = patientLabs.filter(l => l.status === 'HIGH' || l.status === 'LOW');
+    
+    // Combine matching labs + abnormal labs + recent labs (deduplicated, capped at 10)
+    const combinedMap = new Map<string, LabResult>();
+    matchingLabs.forEach(l => combinedMap.set(l.id, l));
+    abnormalLabs.forEach(l => combinedMap.set(l.id, l));
+    
+    // If fewer than 4 labs selected, add latest normal labs
+    if (combinedMap.size < 4) {
+      patientLabs.slice(0, 6).forEach(l => combinedMap.set(l.id, l));
+    }
+    
+    selectedLabs = Array.from(combinedMap.values()).slice(0, 10);
+  } else {
+    // Default compact cap: abnormal labs + top 6 recent
+    const abnormal = patientLabs.filter(l => l.status === 'HIGH' || l.status === 'LOW');
+    const normal = patientLabs.filter(l => l.status !== 'HIGH' && l.status !== 'LOW').slice(0, 5);
+    selectedLabs = [...abnormal, ...normal].slice(0, 10);
+  }
+
+  // Medications selection: cap to relevant or top 6
+  let selectedMeds = patientMeds;
+  if (userQuery && !isMedsQuery && patientMeds.length > 5) {
+    // If not asking about meds, limit to top 4 active meds to keep prompt compact
+    selectedMeds = patientMeds.slice(0, 4);
+  } else if (patientMeds.length > 8) {
+    selectedMeds = patientMeds.slice(0, 8);
+  }
+
+  // Reports selection: cap to recent 4
+  const selectedReports = patientReports.slice(0, 5);
 
   return {
     patientName: patient.name,
     patientAge: patient.age,
     patientSex: patient.sex,
     hasRecords,
-    reports: patientReports.map(r => ({
+    reports: selectedReports.map(r => ({
       title: r.title,
       date: r.reportDate || r.uploadDate,
       category: r.category,
       extractedCount: r.extractedItemsCount
     })),
-    labs: patientLabs.map(l => ({
+    labs: selectedLabs.map(l => ({
       testName: l.testName,
       originalTerm: l.originalTestName,
       value: l.resultValue,
@@ -101,24 +155,24 @@ export function buildStructuredPatientContext(
       source: l.provenance.sourceName,
       verificationStatus: l.verificationStatus
     })),
-    medications: patientMeds.map(m => ({
+    medications: selectedMeds.map(m => ({
       name: m.name,
       dose: m.dose,
       freq: m.frequency,
       source: m.provenance.sourceName,
       verified: m.verificationStatus
     })),
-    conditions: patientConditions.map(c => ({
+    conditions: patientConditions.slice(0, 5).map(c => ({
       name: c.name,
       status: c.status,
       source: c.provenance.sourceName
     })),
-    allergies: patientAllergies.map(a => ({
+    allergies: patientAllergies.slice(0, 4).map(a => ({
       allergen: a.allergen,
       severity: a.severity,
       reaction: a.reaction
     })),
-    conflicts: patientConflicts.map(c => ({
+    conflicts: patientConflicts.slice(0, 4).map(c => ({
       title: c.title,
       description: c.description,
       resolved: c.resolved
@@ -141,10 +195,10 @@ export async function sendChatMessageToAI(
 ): Promise<ChatMessage> {
   const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  // Retrieve Firebase ID token if user is authenticated
+  // Retrieve Firebase ID token if user is authenticated (from in-memory cache)
   let idToken: string | undefined;
   try {
-    idToken = await auth.currentUser?.getIdToken();
+    idToken = auth.currentUser ? await auth.currentUser.getIdToken(false) : undefined;
   } catch {
     // Optional for demo mode or offline testing
   }
@@ -165,11 +219,11 @@ export async function sendChatMessageToAI(
   };
 
   /**
-   * Internal executor with transparent single retry on transient cold start / gateway errors
+   * Fast internal executor with single safe retry for transient network / cold start errors
    */
   async function executeRequest(attempt: number = 0): Promise<Response> {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s network timeout
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s network timeout
 
     try {
       const res = await fetch('/api/chat', {
@@ -180,20 +234,20 @@ export async function sendChatMessageToAI(
       });
       clearTimeout(timeoutId);
 
-      // If server returned a transient cold-start gateway error (502/503/504), retry once silently
+      // Fast single retry for transient cold-start gateway error (502/503/504)
       if ([502, 503, 504].includes(res.status) && attempt === 0) {
-        console.warn(`[aiService] /api/chat returned status ${res.status}. Retrying once after cold start delay...`);
-        await new Promise(resolve => setTimeout(resolve, 800));
+        console.warn(`[aiService] /api/chat returned status ${res.status}. Retrying in 300ms...`);
+        await new Promise(resolve => setTimeout(resolve, 300));
         return executeRequest(1);
       }
 
       return res;
     } catch (err: any) {
       clearTimeout(timeoutId);
-      // If network dropped or aborted during cold start on first attempt, retry once
+      // Fast single retry if network aborted or dropped
       if (attempt === 0) {
-        console.warn(`[aiService] /api/chat network error (${err?.message || err}). Retrying once after delay...`);
-        await new Promise(resolve => setTimeout(resolve, 800));
+        console.warn(`[aiService] /api/chat network error (${err?.message || err}). Retrying in 300ms...`);
+        await new Promise(resolve => setTimeout(resolve, 300));
         return executeRequest(1);
       }
       throw err;

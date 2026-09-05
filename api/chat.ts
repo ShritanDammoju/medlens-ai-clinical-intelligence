@@ -112,42 +112,123 @@ async function parseRequestBody(req: any): Promise<ChatRequestBody> {
 }
 
 /**
- * Executes fetch with transient error retry and exponential backoff to handle cold starts & TLS handshake delays.
+ * High-performance Gemini Client with keep-alive connection reuse and fast exponential backoff.
  */
-async function fetchWithRetry(
-  url: string,
-  options: RequestInit,
-  maxRetries: number = 2
-): Promise<Response> {
-  let attempt = 0;
-  let lastError: any = null;
+class GeminiClient {
+  readonly apiKey: string;
+  readonly modelName: string;
+  readonly endpoint: string;
 
-  while (attempt <= maxRetries) {
-    try {
-      const response = await fetch(url, options);
-      // Retry transient HTTP status codes (429 rate limit, 500, 502, 503, 504 gateway errors)
-      if ([429, 500, 502, 503, 504].includes(response.status) && attempt < maxRetries) {
-        const delayMs = 600 * Math.pow(2, attempt) + Math.floor(Math.random() * 200);
-        console.warn(`[api/chat] Gemini API returned transient HTTP ${response.status}. Retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})...`);
-        await new Promise(resolve => setTimeout(resolve, delayMs));
-        attempt++;
-        continue;
-      }
-      return response;
-    } catch (err: any) {
-      lastError = err;
-      if (attempt < maxRetries) {
-        const delayMs = 600 * Math.pow(2, attempt) + Math.floor(Math.random() * 200);
-        console.warn(`[api/chat] Gemini API network fetch failed (${err?.message || err}). Retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})...`);
-        await new Promise(resolve => setTimeout(resolve, delayMs));
-        attempt++;
-        continue;
-      }
-      throw lastError;
-    }
+  constructor(apiKey: string, modelName: string = 'gemini-3.8-flash') {
+    this.apiKey = apiKey;
+    this.modelName = modelName;
+    this.endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.modelName}:generateContent?key=${this.apiKey}`;
   }
 
-  throw lastError || new Error('Failed to reach Gemini API after retries');
+  async generateContent(
+    contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>,
+    systemInstruction: string,
+    maxRetries: number = 2
+  ): Promise<{ text: string; modelUsed: string }> {
+    const payload = {
+      systemInstruction: {
+        parts: [{ text: systemInstruction }]
+      },
+      contents,
+      generationConfig: {
+        temperature: 0.2,
+        topP: 0.85,
+        maxOutputTokens: 800
+      }
+    };
+
+    const bodyJson = JSON.stringify(payload);
+    let attempt = 0;
+    let lastError: any = null;
+
+    while (attempt <= maxRetries) {
+      const controller = new AbortController();
+      // Fast per-attempt timeout of 12 seconds for Gemini 3.8 Flash
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+      try {
+        const response = await fetch(this.endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Connection': 'keep-alive'
+          },
+          body: bodyJson,
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        // Fail-fast on non-retryable 4xx client errors (400 invalid argument, 401 invalid key, 403 forbidden)
+        if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+          const errText = await response.text();
+          throw new Error(`Gemini client error HTTP ${response.status}: ${errText}`);
+        }
+
+        // Transient status codes eligible for retry: 429 rate limit, 500, 502, 503, 504
+        if ([429, 500, 502, 503, 504].includes(response.status)) {
+          if (attempt < maxRetries) {
+            // Fast exponential backoff: 250ms on first retry, 500ms on second retry
+            const delayMs = 250 * Math.pow(2, attempt) + Math.floor(Math.random() * 50);
+            console.warn(`[GeminiClient] Transient HTTP ${response.status}. Retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})...`);
+            await new Promise(r => setTimeout(r, delayMs));
+            attempt++;
+            continue;
+          }
+          const errText = await response.text();
+          throw new Error(`Gemini server error HTTP ${response.status}: ${errText}`);
+        }
+
+        const data = await response.json();
+        const candidateText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!candidateText) {
+          throw new Error('No candidate text returned by Gemini.');
+        }
+
+        return { text: candidateText, modelUsed: this.modelName };
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+        lastError = err;
+
+        // If non-retryable client error, throw immediately
+        if (err?.message?.includes('Gemini client error HTTP')) {
+          throw err;
+        }
+
+        // Retry transient network errors or socket timeouts
+        if (attempt < maxRetries) {
+          const delayMs = 250 * Math.pow(2, attempt) + Math.floor(Math.random() * 50);
+          console.warn(`[GeminiClient] Network error (${err?.message || err}). Retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})...`);
+          await new Promise(r => setTimeout(r, delayMs));
+          attempt++;
+          continue;
+        }
+        throw lastError;
+      }
+    }
+
+    throw lastError || new Error('Failed to generate response from Gemini after retries.');
+  }
+}
+
+// Module-level cached client singleton across warm container invocations
+let cachedClient: GeminiClient | null = null;
+let cachedKey: string = '';
+let cachedModel: string = '';
+
+function getGeminiClient(): GeminiClient {
+  const apiKey = process.env.GEMINI_API_KEY || '';
+  const modelName = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+  if (!cachedClient || cachedKey !== apiKey || cachedModel !== modelName) {
+    cachedClient = new GeminiClient(apiKey, modelName);
+    cachedKey = apiKey;
+    cachedModel = modelName;
+  }
+  return cachedClient;
 }
 
 export default async function handler(req: any, res: any) {
@@ -192,59 +273,72 @@ export default async function handler(req: any, res: any) {
     // Guard against excessive message length
     const cleanMessage = message.trim().slice(0, 1000);
 
-    // Format structured clinical context for Gemini
+    // Build compact clinical context
     let contextPrompt = '';
     if (!patientContext || !patientContext.hasRecords) {
       contextPrompt = `PATIENT CONTEXT:
-Patient Name: ${patientContext?.patientName || 'Patient'}
-Status: No medical reports or clinical intake records have been uploaded yet.
-Instruction: Inform the patient that their MedLens record is currently empty, and they can complete their intake or upload a diagnostic report to enable detailed analysis.`;
+Patient: ${patientContext?.patientName || 'Patient'}
+Status: No medical records uploaded yet.
+Instruction: Inform the patient that their MedLens profile is currently empty and encourage them to complete intake or upload diagnostic reports.`;
     } else {
-      contextPrompt = `PATIENT RECORD SUMMARY (CURRENT AUTHORIZED DATA):
-Patient: ${patientContext.patientName || 'Patient'} (${patientContext.patientAge || 'Age not recorded'}y, ${patientContext.patientSex || 'Sex not recorded'})
+      const reportsSummary = (patientContext.reports || [])
+        .slice(0, 5)
+        .map(r => `"${r.title}" (${r.date})`)
+        .join(', ') || 'None';
+
+      const labsList = (patientContext.labs || [])
+        .slice(0, 10)
+        .map(l => {
+          const ref = l.refRange ? `[Ref: ${l.refRange} ${l.unit}]` : '[Ref: Not stated in source]';
+          const flag = l.status && l.status !== 'NORMAL' ? ` [${l.status}]` : '';
+          return `• ${l.testName}: ${l.value} ${l.unit} ${ref}${flag} (Report: "${l.source}")`;
+        })
+        .join('\n') || 'None recorded';
+
+      const medsSummary = (patientContext.medications || [])
+        .slice(0, 6)
+        .map(m => `• ${m.name} (${m.dose}, ${m.freq})`)
+        .join('\n') || 'None recorded';
+
+      const conflictsSummary = (patientContext.conflicts || [])
+        .filter(c => !c.resolved)
+        .slice(0, 3)
+        .map(c => `• ${c.title}: ${c.description}`)
+        .join('\n') || 'None';
+
+      contextPrompt = `PATIENT RECORD (AUTHORIZED SUMMARY):
+Patient: ${patientContext.patientName || 'Patient'} (${patientContext.patientAge || 'Age unrecorded'}y, ${patientContext.patientSex || 'Sex unrecorded'})
 Role viewing: ${role === 'doctor' ? 'Authorized Clinician Reviewer' : 'Patient'}
 Demo Mode: ${isDemo ? 'YES (Simulated Dataset)' : 'NO (Real Authenticated Record)'}
+Uploaded Documents: ${reportsSummary}
 
-UPLOADED REPORTS (${patientContext.reports?.length || 0}):
-${(patientContext.reports || []).map(r => `• "${r.title}" (Date: ${r.date}, Category: ${r.category || 'General'}, Extracted items: ${r.extractedCount || 0})`).join('\n') || 'None'}
+KEY LABORATORY FINDINGS:
+${labsList}
 
-LABORATORY RESULTS & BIOMARKERS (${patientContext.labs?.length || 0}):
-${(patientContext.labs || []).map(l => 
-  `• ${l.testName}${l.originalTerm && l.originalTerm !== l.testName ? ` [Source term: "${l.originalTerm}"]` : ''}: ${l.value} ${l.unit} | Source Ref Range: ${l.refRange ? `[${l.refRange} ${l.unit}]` : 'Not provided by lab'} | Status: ${l.status} | Date: ${l.date} | Report: "${l.source}" | Verification: ${l.verificationStatus || 'unverified'}`
-).join('\n') || 'None recorded'}
+ACTIVE MEDICATIONS:
+${medsSummary}
 
-ACTIVE MEDICATIONS (${patientContext.medications?.length || 0}):
-${(patientContext.medications || []).map(m => `• ${m.name} (Dose: ${m.dose}, Frequency: ${m.freq}, Source: "${m.source}")`).join('\n') || 'None recorded'}
-
-KNOWN ALLERGIES:
-${(patientContext.allergies || []).map(a => `• ${a.allergen} (${a.severity || 'Unspecified'} severity${a.reaction ? `, Reaction: ${a.reaction}` : ''})`).join('\n') || 'None recorded'}
-
-EXISTING CONDITIONS:
-${(patientContext.conditions || []).map(c => `• ${c.name} (${c.status})`).join('\n') || 'None recorded'}
-
-CROSS-RECORD CONFLICTS (${patientContext.conflicts?.length || 0}):
-${(patientContext.conflicts || []).map(c => `• ${c.title}: ${c.description} [Status: ${c.resolved ? 'Resolved' : 'Pending Review'}]`).join('\n') || 'None detected'}`;
+UNRESOLVED CONFLICTS:
+${conflictsSummary}`;
     }
 
-    // Build Gemini multi-turn contents array with conversation history
+    // Limit conversation history to the most recent 4 messages to preserve speed and token budget
+    const recentHistory = conversationHistory.slice(-4);
     const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
-
-    // Limit conversation history to the most recent 6 messages to preserve context token budget
-    const recentHistory = conversationHistory.slice(-6);
 
     if (recentHistory.length > 0) {
       // First turn pairs patient clinical context with first message
       const firstMsg = recentHistory[0];
       contents.push({
         role: firstMsg.sender === 'user' ? 'user' : 'model',
-        parts: [{ text: `[PATIENT CLINICAL RECORD CONTEXT]\n${contextPrompt}\n\n[USER QUESTION]\n${firstMsg.text}` }]
+        parts: [{ text: `[PATIENT CLINICAL RECORD CONTEXT]\n${contextPrompt}\n\n[USER QUESTION]\n${firstMsg.text.slice(0, 400)}` }]
       });
 
       for (let i = 1; i < recentHistory.length; i++) {
         const item = recentHistory[i];
         contents.push({
           role: item.sender === 'user' ? 'user' : 'model',
-          parts: [{ text: item.text }]
+          parts: [{ text: item.sender === 'assistant' ? item.text.slice(0, 250) : item.text.slice(0, 400) }]
         });
       }
 
@@ -261,49 +355,13 @@ ${(patientContext.conflicts || []).map(c => `• ${c.title}: ${c.description} [S
       });
     }
 
-    // Target production Gemini model: gemini-3.8-flash (with customizable env override)
-    const modelName = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-
-    const geminiPayload = {
-      systemInstruction: {
-        parts: [{ text: SYSTEM_INSTRUCTION }]
-      },
+    // Call persistent Gemini 3.8 Flash Client
+    const client = getGeminiClient();
+    const { text: candidateText, modelUsed } = await client.generateContent(
       contents,
-      generationConfig: {
-        temperature: 0.3,
-        topP: 0.85,
-        maxOutputTokens: 1024
-      }
-    };
-
-    const response = await fetchWithRetry(apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(geminiPayload)
-    }, 2);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[api/chat] Gemini API returned error status ${response.status}:`, errorText);
-      res.status(502).json({
-        error: `Gemini API responded with status ${response.status}`,
-        details: errorText,
-        text: 'MedLens AI encountered a temporary issue communicating with the generative model. Your medical records remain intact and secure.'
-      });
-      return;
-    }
-
-    const data = await response.json();
-    const candidateText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!candidateText) {
-      res.status(500).json({
-        error: 'No text was returned by the generative model.',
-        text: 'Unable to formulate an answer from the clinical records at this moment.'
-      });
-      return;
-    }
+      SYSTEM_INSTRUCTION,
+      2
+    );
 
     // Extract relevant source citations based on the response content and patient labs
     const relevantSources: SourceItem[] = [];
@@ -330,15 +388,15 @@ ${(patientContext.conflicts || []).map(c => `• ${c.title}: ${c.description} [S
     res.status(200).json({
       text: candidateText,
       sources: relevantSources.slice(0, 4), // Cap at top 4 relevant source tags
-      modelUsed: modelName,
+      modelUsed,
       isDemo: Boolean(isDemo),
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     });
   } catch (err: any) {
-    console.error('API /api/chat error:', err);
+    console.error('[api/chat] Error processing question:', err);
     res.status(500).json({
       error: err?.message || 'Internal server error processing clinical question.',
-      text: 'An unexpected error occurred while processing your request. Please try again.'
+      text: 'MedLens AI encountered a temporary issue while communicating with the generative model. Your medical records remain intact and secure.'
     });
   }
 }
