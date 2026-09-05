@@ -83,7 +83,7 @@ export const SettingsPage: React.FC = () => {
               : 'bg-slate-50 border-slate-200'
           }`}>
             <div className="flex items-center justify-between">
-              <span className="font-bold text-sm text-slate-900">Gemini 1.5 Engine</span>
+              <span className="font-bold text-sm text-slate-900">Gemini 3.8 Flash Generative AI</span>
               {aiMode === 'Gemini' && (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
                   Active
@@ -91,7 +91,7 @@ export const SettingsPage: React.FC = () => {
               )}
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Activated when <code className="text-sky-700 font-mono">VITE_GEMINI_API_KEY</code> is configured in your <code className="font-mono">.env</code> file.
+              Powered securely server-side via <code className="text-sky-700 font-mono">GEMINI_API_KEY</code> in Vercel Project Settings (never exposed to browser clients).
             </p>
           </div>
 

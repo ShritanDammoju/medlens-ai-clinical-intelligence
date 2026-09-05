@@ -1,18 +1,203 @@
-import { AIInsightSummary, LabResult, Medication, Patient, MedicalReport, DataConflict } from '../types/medical';
-
-// Check for free-tier Gemini API key via environment variable
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
+import { 
+  AIInsightSummary, 
+  LabResult, 
+  Medication, 
+  Patient, 
+  MedicalReport, 
+  DataConflict,
+  Condition,
+  Allergy,
+  ChatMessage
+} from '../types/medical';
 
 export type AIMode = 'Gemini' | 'Demo';
 
-export function getAIMode(): AIMode {
-  return GEMINI_API_KEY && GEMINI_API_KEY.trim().length > 10 ? 'Gemini' : 'Demo';
+export function getAIMode(isDemoMode?: boolean): AIMode {
+  return isDemoMode ? 'Demo' : 'Gemini';
+}
+
+export interface StructuredPatientContext {
+  patientName: string;
+  patientAge?: number;
+  patientSex?: string;
+  hasRecords: boolean;
+  reports: Array<{ title: string; date: string; category?: string; extractedCount?: number }>;
+  labs: Array<{
+    testName: string;
+    originalTerm?: string;
+    value: string;
+    unit: string;
+    refRange: string | null;
+    status: string;
+    date: string;
+    source: string;
+    verificationStatus?: string;
+  }>;
+  medications: Array<{ name: string; dose: string; freq: string; source: string; verified?: string }>;
+  conditions: Array<{ name: string; status: string; source?: string }>;
+  allergies: Array<{ allergen: string; severity?: string; reaction?: string }>;
+  conflicts: Array<{ title: string; description: string; resolved: boolean }>;
+  unverifiedCount: number;
+}
+
+/**
+ * Builds a structured, non-bloated clinical context payload for the generative model.
+ * Strictly preserves source reference ranges, verbatim tokens, and provenance.
+ */
+export function buildStructuredPatientContext(
+  patient: Patient | null,
+  labs: LabResult[] = [],
+  meds: Medication[] = [],
+  reports: MedicalReport[] = [],
+  conditions: Condition[] = [],
+  allergies: Allergy[] = [],
+  conflicts: DataConflict[] = []
+): StructuredPatientContext {
+  if (!patient) {
+    return {
+      patientName: 'Unknown Patient',
+      hasRecords: false,
+      reports: [],
+      labs: [],
+      medications: [],
+      conditions: [],
+      allergies: [],
+      conflicts: [],
+      unverifiedCount: 0
+    };
+  }
+
+  const patientLabs = labs.filter(l => l.patientId === patient.id);
+  const patientMeds = meds.filter(m => m.patientId === patient.id);
+  const patientReports = reports.filter(r => r.patientId === patient.id);
+  const patientConditions = conditions.filter(c => c.patientId === patient.id);
+  const patientAllergies = allergies.filter(a => a.patientId === patient.id);
+  const patientConflicts = conflicts.filter(c => c.patientId === patient.id);
+
+  const unverifiedCount = patientLabs.filter(l => l.verificationStatus === 'needs_review' || l.verificationStatus === 'unverified').length;
+
+  const hasRecords = patientLabs.length > 0 || patientReports.length > 0 || patientMeds.length > 0;
+
+  return {
+    patientName: patient.name,
+    patientAge: patient.age,
+    patientSex: patient.sex,
+    hasRecords,
+    reports: patientReports.map(r => ({
+      title: r.title,
+      date: r.reportDate || r.uploadDate,
+      category: r.category,
+      extractedCount: r.extractedItemsCount
+    })),
+    labs: patientLabs.map(l => ({
+      testName: l.testName,
+      originalTerm: l.originalTestName,
+      value: l.resultValue,
+      unit: l.unit,
+      refRange: l.referenceRange,
+      status: l.status,
+      date: l.date,
+      source: l.provenance.sourceName,
+      verificationStatus: l.verificationStatus
+    })),
+    medications: patientMeds.map(m => ({
+      name: m.name,
+      dose: m.dose,
+      freq: m.frequency,
+      source: m.provenance.sourceName,
+      verified: m.verificationStatus
+    })),
+    conditions: patientConditions.map(c => ({
+      name: c.name,
+      status: c.status,
+      source: c.provenance.sourceName
+    })),
+    allergies: patientAllergies.map(a => ({
+      allergen: a.allergen,
+      severity: a.severity,
+      reaction: a.reaction
+    })),
+    conflicts: patientConflicts.map(c => ({
+      title: c.title,
+      description: c.description,
+      resolved: c.resolved
+    })),
+    unverifiedCount
+  };
+}
+
+/**
+ * Dispatches the user question and structured patient context to the secure backend endpoint /api/chat.
+ * Employs Gemini 3.8 Flash server-side without exposing API keys to the browser.
+ */
+export async function sendChatMessageToAI(
+  message: string,
+  conversationHistory: Array<{ sender: 'user' | 'assistant'; text: string }>,
+  patientContext: StructuredPatientContext,
+  isDemo: boolean = false,
+  role: 'patient' | 'doctor' = 'patient'
+): Promise<ChatMessage> {
+  const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s network timeout
+
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        message,
+        conversationHistory,
+        patientContext,
+        isDemo,
+        role
+      }),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      if (res.status === 503 || errData.code === 'API_KEY_NOT_CONFIGURED') {
+        return {
+          id: `bot-${Date.now()}`,
+          sender: 'assistant',
+          text: errData.text || 'MedLens AI is temporarily unavailable because the server GEMINI_API_KEY is not configured in Vercel Project Settings. Your medical records remain intact and accessible.',
+          timestamp
+        };
+      }
+      throw new Error(errData.error || `Server responded with status ${res.status}`);
+    }
+
+    const data = await res.json();
+    return {
+      id: `bot-${Date.now()}`,
+      sender: 'assistant',
+      text: data.text,
+      sources: data.sources || [],
+      timestamp
+    };
+  } catch (err: any) {
+    console.error('Chat AI request error:', err);
+    const isTimeout = err?.name === 'AbortError';
+    return {
+      id: `bot-${Date.now()}`,
+      sender: 'assistant',
+      text: isTimeout 
+        ? 'MedLens AI request timed out. Please check your network connection and click Retry.' 
+        : 'MedLens AI is temporarily unavailable. Your saved medical record is still available.',
+      timestamp
+    };
+  }
 }
 
 /**
  * Generates an intelligent, clinically responsible summary for the patient.
- * If Gemini API key is present, calls the Gemini API with strict healthcare safety prompts.
- * Otherwise, falls back to the deterministic client-side Local AI Engine.
+ * Uses high-quality deterministic parsing with strict reference range adherence.
  */
 export async function generatePatientInsights(
   patient: Patient,
@@ -21,18 +206,6 @@ export async function generatePatientInsights(
   reports: MedicalReport[],
   conflicts: DataConflict[]
 ): Promise<AIInsightSummary> {
-  const mode = getAIMode();
-
-  if (mode === 'Gemini') {
-    try {
-      const geminiResult = await callGeminiAPI(patient, labs, meds, reports, conflicts);
-      if (geminiResult) return geminiResult;
-    } catch (err) {
-      console.warn('Gemini API request failed or timed out. Gracefully falling back to Local AI Engine:', err);
-    }
-  }
-
-  // High-Quality Deterministic Local AI fallback
   return generateDeterministicInsights(patient, labs, meds, reports, conflicts);
 }
 
@@ -141,77 +314,6 @@ function generateDeterministicInsights(
     abnormalValues: abnormalItems,
     missingInformation: missingInfo.length > 0 ? missingInfo : ['All required reference ranges and dosages were located in uploaded source documents.'],
     questionsForReview: questions.length > 0 ? questions : ['What primary health goals would you like to focus on during your next appointment?'],
-    aiModelUsed: 'Demo / Local Deterministic Engine',
-    generatedAt: new Date().toISOString()
-  };
-}
-
-/**
- * Direct call to Gemini 1.5/2.0 API via HTTP endpoint when key is provided
- */
-async function callGeminiAPI(
-  patient: Patient,
-  labs: LabResult[],
-  meds: Medication[],
-  reports: MedicalReport[],
-  conflicts: DataConflict[]
-): Promise<AIInsightSummary | null> {
-  const prompt = `You are the clinical summarization engine of MedLens.
-CRITICAL MEDICAL SAFETY RULES:
-1. Explain information in clear, simple language for a patient.
-2. Mention observations and abnormal values based ONLY on provided source reference ranges.
-3. NEVER diagnose a disease (e.g. NEVER say "you have diabetes" or "you have anemia").
-4. NEVER prescribe or recommend medications, dosage changes, or treatments.
-5. Mention missing information and uncertainty clearly.
-6. Return purely valid JSON matching the schema below.
-
-PATIENT:
-Name: ${patient.name}, Age: ${patient.age}, Sex: ${patient.sex}
-
-LAB RESULTS:
-${JSON.stringify(labs.map(l => ({ test: l.testName, value: l.resultValue, unit: l.unit, refRange: l.referenceRange, status: l.status, source: l.provenance.sourceName })))}
-
-MEDICATIONS:
-${JSON.stringify(meds.map(m => ({ name: m.name, dose: m.dose, freq: m.frequency, source: m.provenance.sourceName })))}
-
-REPORTS:
-${JSON.stringify(reports.map(r => ({ title: r.title, date: r.reportDate })))}
-
-POTENTIAL CONFLICTS:
-${JSON.stringify(conflicts.map(c => ({ title: c.title, desc: c.description })))}
-
-JSON Output Schema:
-{
-  "patientFriendlySummary": "string",
-  "keyObservations": ["string"],
-  "abnormalValues": [{"testName": "string", "value": "string", "referenceRange": "string", "status": "LOW|HIGH|NORMAL", "source": "string", "note": "string"}],
-  "missingInformation": ["string"],
-  "questionsForReview": ["string"]
-}`;
-
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        responseMimeType: "application/json",
-        temperature: 0.2
-      }
-    })
-  });
-
-  if (!response.ok) {
-    throw new Error(`Gemini API HTTP Error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!textContent) return null;
-
-  const parsed = JSON.parse(textContent);
-  return {
-    ...parsed,
     aiModelUsed: 'Gemini',
     generatedAt: new Date().toISOString()
   };
