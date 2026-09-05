@@ -68,16 +68,23 @@ export const ReportUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess 
 
   const handleFileSelected = (file: File) => {
     setErrorMsg(null);
-    const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'text/plain'];
-    const isExtensionMatch = /\.(pdf|png|jpe?g|txt)$/i.test(file.name);
+    const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'text/plain'];
+    const isExtensionMatch = /\.(pdf|png|jpe?g|webp|txt)$/i.test(file.name);
+    const hasDangerousExtension = /\.(exe|bat|cmd|sh|php|js|mjs|vbs|svg|html|htm|hta|dll|py|jar)$/i.test(file.name);
 
-    if (!validTypes.includes(file.type) && !isExtensionMatch) {
-      setErrorMsg('Unsupported file format. Please upload a PDF, PNG, JPG, or TXT report.');
+    // Reject dangerous extensions, invalid extensions, or spoofed types
+    if (hasDangerousExtension || !isExtensionMatch) {
+      setErrorMsg('Unsupported or unsafe file format. Please upload a PDF, PNG, JPG, WEBP, or TXT report.');
+      return;
+    }
+
+    if (file.type && !validTypes.includes(file.type)) {
+      setErrorMsg('Invalid file MIME type. Please select a valid clinical document.');
       return;
     }
 
     if (file.size > 25 * 1024 * 1024) {
-      setErrorMsg('File size exceeds 25 MB. Please upload a smaller medical report.');
+      setErrorMsg('File size exceeds 25 MB limit. Please upload a smaller medical report.');
       return;
     }
 

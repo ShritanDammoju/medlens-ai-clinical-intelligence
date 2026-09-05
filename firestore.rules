@@ -2,7 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper functions
+    // Core Authentication & Ownership Helpers
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -11,28 +11,35 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
     
-    function getUserRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    function isDoctor() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/doctors/$(request.auth.uid));
     }
     
-    function isDoctor() {
-      return isAuthenticated() && (getUserRole() == 'doctor' || exists(/databases/$(database)/documents/doctors/$(request.auth.uid)));
+    // Verified Connection Helper: Checks if doctor has an accepted connection with patient
+    function hasApprovedDoctorConnection(patientId) {
+      return isAuthenticated() && (
+        exists(/databases/$(database)/documents/connections/$('conn_' + patientId + '_' + request.auth.uid)) &&
+        get(/databases/$(database)/documents/connections/$('conn_' + patientId + '_' + request.auth.uid)).data.status == 'accepted'
+      );
     }
 
-    // User Profile Rules: Users can read/write their own profile
+    // User Profiles: Users read their own profile; role is strictly immutable after creation
     match /users/{userId} {
-      allow read: if isAuthenticated();
+      allow read: if isOwner(userId) || isDoctor();
       allow create: if isOwner(userId) && request.resource.data.role in ['patient', 'doctor'];
-      allow update: if isOwner(userId);
+      // CRITICAL: Prevent role tampering/privilege escalation after creation
+      allow update: if isOwner(userId) && request.resource.data.role == resource.data.role;
+      allow delete: if false; // Profiles cannot be arbitrarily deleted from client
     }
 
-    // Doctor Profiles: Authenticated users can read doctor code for connection verification
+    // Doctor Profiles: Authenticated users can read doctor profiles to verify doctor codes
     match /doctors/{doctorId} {
       allow read: if isAuthenticated();
-      allow write: if isOwner(doctorId);
+      allow create, update: if isOwner(doctorId);
+      allow delete: if false;
     }
 
-    // Doctor-Patient Connections: Either participant can read or manage
+    // Doctor-Patient Connections: Strictly accessible to the participating patient and doctor
     match /connections/{connId} {
       allow read: if isAuthenticated() && (
         resource.data.patientId == request.auth.uid || 
@@ -42,54 +49,98 @@ service cloud.firestore {
         request.resource.data.patientId == request.auth.uid || 
         request.resource.data.doctorId == request.auth.uid
       );
-      allow update, delete: if isAuthenticated() && (
+      allow update: if isAuthenticated() && (
+        resource.data.patientId == request.auth.uid || 
+        resource.data.doctorId == request.auth.uid
+      );
+      allow delete: if isAuthenticated() && (
         resource.data.patientId == request.auth.uid || 
         resource.data.doctorId == request.auth.uid
       );
     }
 
-    // Patient Records Rules: Patients read/write their own records; doctors can review
+    // Patient Records: Patients have full control; doctors can read ONLY if accepted connection exists
     match /patients/{patientId} {
-      allow read, write: if isOwner(patientId) || isDoctor();
+      allow read: if isOwner(patientId) || hasApprovedDoctorConnection(patientId);
+      allow write: if isOwner(patientId);
     }
 
-    // Medical Reports & Extracted Labs: Restricted strictly to owner or clinical reviewers
+    // Medical Reports: Strictly restricted to patient owner or approved connected clinician
     match /reports/{reportId} {
-      allow read: if isAuthenticated() && (resource.data.uploadedBy == request.auth.uid || resource.data.patientId == request.auth.uid || isDoctor());
-      allow write: if isAuthenticated() && (request.resource.data.uploadedBy == request.auth.uid || request.resource.data.patientId == request.auth.uid || isDoctor());
+      allow read: if isAuthenticated() && (
+        resource.data.uploadedBy == request.auth.uid || 
+        resource.data.patientId == request.auth.uid || 
+        hasApprovedDoctorConnection(resource.data.patientId)
+      );
+      allow write: if isAuthenticated() && (
+        request.resource.data.uploadedBy == request.auth.uid || 
+        request.resource.data.patientId == request.auth.uid
+      );
     }
 
+    // Extracted Labs & Biomarkers: Patient owner or approved clinician
     match /labs/{labId} {
-      allow read: if isAuthenticated() && (resource.data.patientId == request.auth.uid || isDoctor());
-      allow write: if isAuthenticated() && (request.resource.data.patientId == request.auth.uid || isDoctor());
+      allow read: if isAuthenticated() && (
+        resource.data.patientId == request.auth.uid || 
+        hasApprovedDoctorConnection(resource.data.patientId)
+      );
+      allow write: if isAuthenticated() && (
+        request.resource.data.patientId == request.auth.uid || 
+        (isDoctor() && hasApprovedDoctorConnection(request.resource.data.patientId))
+      );
     }
 
     match /labResults/{labId} {
-      allow read: if isAuthenticated() && (resource.data.patientId == request.auth.uid || isDoctor());
-      allow write: if isAuthenticated() && (request.resource.data.patientId == request.auth.uid || isDoctor());
+      allow read: if isAuthenticated() && (
+        resource.data.patientId == request.auth.uid || 
+        hasApprovedDoctorConnection(resource.data.patientId)
+      );
+      allow write: if isAuthenticated() && (
+        request.resource.data.patientId == request.auth.uid || 
+        (isDoctor() && hasApprovedDoctorConnection(request.resource.data.patientId))
+      );
     }
 
     // Medications & Allergies
     match /medications/{medId} {
-      allow read: if isAuthenticated() && (resource.data.patientId == request.auth.uid || isDoctor());
-      allow write: if isAuthenticated() && (request.resource.data.patientId == request.auth.uid || isDoctor());
+      allow read: if isAuthenticated() && (
+        resource.data.patientId == request.auth.uid || 
+        hasApprovedDoctorConnection(resource.data.patientId)
+      );
+      allow write: if isAuthenticated() && (
+        request.resource.data.patientId == request.auth.uid || 
+        (isDoctor() && hasApprovedDoctorConnection(request.resource.data.patientId))
+      );
     }
 
     // Timeline Events
     match /timelineEvents/{eventId} {
-      allow read: if isAuthenticated() && (resource.data.patientId == request.auth.uid || isDoctor());
-      allow write: if isAuthenticated() && (request.resource.data.patientId == request.auth.uid || isDoctor());
+      allow read: if isAuthenticated() && (
+        resource.data.patientId == request.auth.uid || 
+        hasApprovedDoctorConnection(resource.data.patientId)
+      );
+      allow write: if isAuthenticated() && (
+        request.resource.data.patientId == request.auth.uid || 
+        (isDoctor() && hasApprovedDoctorConnection(request.resource.data.patientId))
+      );
     }
 
-    // Verifications & Audit Log: Doctors can write verifications; patients can read
+    // Verifications: Scoped to patient or authorized reviewer
     match /verifications/{verifId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthenticated() && (
+        resource.data.patientId == request.auth.uid || 
+        hasApprovedDoctorConnection(resource.data.patientId)
+      );
       allow write: if isDoctor();
     }
 
+    // Audit Log: Read scoped to authorized patient/doctor; write authenticated with actorId check
     match /auditLog/{logId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow read: if isAuthenticated() && (
+        resource.data.patientId == request.auth.uid || 
+        hasApprovedDoctorConnection(resource.data.patientId)
+      );
+      allow write: if isAuthenticated() && request.resource.data.actorId == request.auth.uid;
     }
   }
 }

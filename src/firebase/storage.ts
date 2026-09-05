@@ -9,13 +9,35 @@ export interface StorageUploadOutcome {
   statusMessage: string;
 }
 
+const ALLOWED_MIME_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp', 'text/plain'];
+const ALLOWED_EXTENSIONS = /\.(pdf|png|jpe?g|webp|txt)$/i;
+const DANGEROUS_EXTENSIONS = /\.(exe|bat|cmd|sh|php|js|mjs|vbs|svg|html|htm|hta|dll|py|jar)$/i;
+
 export async function uploadReportToFirebaseStorage(
   file: File, 
   patientId: string,
   onProgress?: (percent: number) => void
 ): Promise<StorageUploadOutcome> {
-  const cleanFileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-  const path = `medical_reports/${patientId}/${cleanFileName}`;
+  // Security checks: file size limit (25MB)
+  if (file.size > 25 * 1024 * 1024) {
+    throw new Error('File size exceeds maximum allowed limit of 25MB.');
+  }
+
+  // Security checks: dangerous extensions & double extensions
+  if (DANGEROUS_EXTENSIONS.test(file.name) || !ALLOWED_EXTENSIONS.test(file.name)) {
+    throw new Error('Invalid file type. Only PDF, PNG, JPG, WEBP, and TXT medical documents are permitted.');
+  }
+
+  // Check MIME type whitelist
+  if (file.type && !ALLOWED_MIME_TYPES.includes(file.type)) {
+    throw new Error('Unsupported document MIME type. Please upload a verified clinical report format.');
+  }
+
+  // Path traversal prevention: strip any directory separators or non-safe characters
+  const sanitizedBaseName = file.name.replace(/[/\\]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_');
+  const cleanFileName = `${Date.now()}_${sanitizedBaseName}`;
+  const cleanPatientId = patientId.replace(/[^a-zA-Z0-9_-]/g, '');
+  const path = `medical_reports/${cleanPatientId}/${cleanFileName}`;
 
   if (!isFirebaseConfigured) {
     if (onProgress) {

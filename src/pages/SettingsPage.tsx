@@ -145,7 +145,7 @@ export const SettingsPage: React.FC = () => {
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div>
             <h2 className="text-base font-bold text-slate-900">Reset Demo State</h2>
-            <p className="text-xs text-slate-500">Restore the initial fictional Alex Carter hackathon dataset</p>
+            <p className="text-xs text-slate-500">Restore the initial fictional Alex Carter hackathon dataset (does not affect authenticated user accounts)</p>
           </div>
 
           <button

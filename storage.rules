@@ -1,15 +1,24 @@
-﻿rules_version = '2';
+rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     
-    // Medical reports are strictly restricted to the authenticated patient or reviewing clinicians
-    match /patients/{uid}/reports/{reportId}/{fileName} {
-      allow read: if request.auth != null && (request.auth.uid == uid || request.auth.token.role == 'doctor');
+    // Primary storage path for patient medical reports
+    match /medical_reports/{patientId}/{fileName} {
+      // Strictly accessible only to the authenticated patient owner
+      allow read: if request.auth != null && request.auth.uid == patientId;
       
-      // Upload limits: must be authenticated owner, under 25MB, and valid document MIME types
+      // Upload limits: must be authenticated patient owner, under 25MB, and safe document MIME types
+      allow write: if request.auth != null && request.auth.uid == patientId
+        && request.resource.size < 25 * 1024 * 1024
+        && request.resource.contentType.matches('application/pdf|image/(jpeg|png|webp)|text/plain');
+    }
+
+    // Secondary path compatibility
+    match /patients/{uid}/reports/{reportId}/{fileName} {
+      allow read: if request.auth != null && request.auth.uid == uid;
       allow write: if request.auth != null && request.auth.uid == uid
         && request.resource.size < 25 * 1024 * 1024
-        && request.resource.contentType.matches('application/pdf|image/.*|text/plain');
+        && request.resource.contentType.matches('application/pdf|image/(jpeg|png|webp)|text/plain');
     }
   }
 }

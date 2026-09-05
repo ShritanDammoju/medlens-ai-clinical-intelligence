@@ -181,4 +181,12 @@ export async function signOutUser(): Promise<void> {
     }
   }
   saveStoredProfile(null);
+  try {
+    sessionStorage.clear();
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    localStorage.removeItem('medlens_cache_connections');
+    localStorage.removeItem('medlens_cache_doctors');
+  } catch (err) {
+    console.warn('Failed to clear session storage on logout:', err);
+  }
 }
