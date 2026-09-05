@@ -38,8 +38,26 @@ export const StructuredPatientRecord: React.FC<Props> = ({ onNavigateTab, onUplo
 
   if (!currentPatient) {
     return (
-      <div className="p-12 text-center text-slate-500">
-        No patient record selected. Click "Load Demo Patient" above.
+      <div className="p-12 text-center rounded-3xl bg-white border border-slate-200 shadow-xs max-w-lg mx-auto space-y-4 my-8">
+        <div className="w-14 h-14 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center mx-auto">
+          <User className="w-7 h-7" />
+        </div>
+        <div className="space-y-1">
+          <h3 className="text-lg font-bold text-slate-800">No Patient Record Found</h3>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            Complete your initial clinical intake or upload a diagnostic document to establish your patient health profile.
+          </p>
+        </div>
+        <div className="flex items-center justify-center gap-3 pt-2">
+          {onUploadClick && (
+            <button
+              onClick={onUploadClick}
+              className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition-colors cursor-pointer"
+            >
+              Upload Report
+            </button>
+          )}
+        </div>
       </div>
     );
   }

@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { usePatient } from '../../context/PatientContext';
 import { processUploadedFile, PROCESSING_STAGES } from '../../services/parserService';
 import { 
@@ -11,9 +11,11 @@ import {
   AlertCircle,
   FileCheck,
   Type,
-  Sparkles
+  Sparkles,
+  Cloud
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { uploadReportToFirebaseStorage } from '../../firebase/storage';
 
 interface Props {
   isOpen: boolean;
@@ -33,6 +35,7 @@ export const ReportUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess 
   const [progressPercent, setProgressPercent] = useState(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successData, setSuccessData] = useState<{ count: number; reportTitle: string } | null>(null);
+  const [storageStatus, setStorageStatus] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -100,6 +103,17 @@ export const ReportUploadModal: React.FC<Props> = ({ isOpen, onClose, onSuccess 
             text: pastedText,
             size: `${(pastedText.length / 1024).toFixed(1)} KB`
           };
+
+      let outcomeMessage = 'Processed securely in browser session';
+      if (tab === 'upload' && selectedFile) {
+        try {
+          const outcome = await uploadReportToFirebaseStorage(selectedFile, currentPatient.id);
+          outcomeMessage = outcome.statusMessage;
+        } catch (storageErr) {
+          console.warn('Storage execution note:', storageErr);
+        }
+      }
+      setStorageStatus(outcomeMessage);
 
       const { report, extractedLabs } = await processUploadedFile(
         inputPayload,
@@ -242,6 +256,12 @@ Vitamin D: 19 ng/mL (ref: 30 - 100)`);
                   <CheckCircle2 className="w-4 h-4 shrink-0" />
                   <span>Audit Trail Created for Human Clinician Verification</span>
                 </div>
+                {storageStatus && (
+                  <div className="flex items-center gap-2 text-slate-700 font-medium pt-1 border-t border-slate-200/80">
+                    <Cloud className="w-4 h-4 shrink-0 text-sky-600" />
+                    <span>{storageStatus}</span>
+                  </div>
+                )}
               </div>
 
               <button

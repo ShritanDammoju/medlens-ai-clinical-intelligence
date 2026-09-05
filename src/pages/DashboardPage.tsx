@@ -1,11 +1,17 @@
 import React from 'react';
 import { usePatient } from '../context/PatientContext';
+import { useAuth } from '../firebase/AuthContext';
 import { 
   FileText, 
   FlaskConical, 
   Pill, 
   CheckCheck,
-  User
+  User,
+  Upload,
+  UserPlus,
+  Stethoscope,
+  Sparkles,
+  ArrowRight
 } from 'lucide-react';
 import { StatCard } from '../components/dashboard/StatCard';
 import { LabTrendChart } from '../components/dashboard/LabTrendChart';
@@ -14,16 +20,19 @@ import { LatestLabsCard } from '../components/dashboard/LatestLabsCard';
 import { MedicationOverviewCard } from '../components/dashboard/MedicationOverviewCard';
 import { RecentReportsCard } from '../components/dashboard/RecentReportsCard';
 import { AISummaryCard } from '../components/dashboard/AISummaryCard';
+import { ConnectedDoctorsCard } from '../components/patient/ConnectedDoctorsCard';
 import { NavTab } from '../components/layout/Sidebar';
 import { LabResult } from '../types/medical';
 
 interface Props {
   onNavigateTab: (tab: NavTab) => void;
   onOpenUpload: () => void;
+  onOpenIntake?: () => void;
 }
 
-export const DashboardPage: React.FC<Props> = ({ onNavigateTab, onOpenUpload }) => {
-  const { currentPatient, state } = usePatient();
+export const DashboardPage: React.FC<Props> = ({ onNavigateTab, onOpenUpload, onOpenIntake }) => {
+  const { currentPatient, state, isReviewingExternalPatient, exitPatientReview } = usePatient();
+  const { userProfile, role } = useAuth();
 
   const patientLabs = state.labs.filter((l: LabResult) => l.patientId === currentPatient?.id);
   const patientMeds = state.meds.filter((m) => m.patientId === currentPatient?.id);
@@ -31,8 +40,32 @@ export const DashboardPage: React.FC<Props> = ({ onNavigateTab, onOpenUpload }) 
   const needsReviewCount = patientLabs.filter((l: LabResult) => l.verificationStatus === 'needs_review').length;
   const abnormalCount = patientLabs.filter((l: LabResult) => l.status === 'LOW' || l.status === 'HIGH').length;
 
+  const isRealAccountEmpty = !currentPatient?.isDemo && patientReports.length === 0 && patientLabs.length === 0;
+
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
+      {/* Reviewing External Patient Banner (for Clinicians) */}
+      {isReviewingExternalPatient && (
+        <div className="p-4 rounded-2xl bg-sky-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+          <div className="flex items-center gap-3">
+            <Stethoscope className="w-5 h-5 text-sky-400 shrink-0" />
+            <div>
+              <div className="font-bold text-sm">Reviewing Patient: {currentPatient?.name}</div>
+              <div className="text-xs text-sky-200">You are reviewing this patient's clinical records. Modifications will be logged under your reviewer identity.</div>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              exitPatientReview();
+              onNavigateTab('doctor_portal');
+            }}
+            className="px-4 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-bold transition-colors cursor-pointer shrink-0"
+          >
+            Return to Doctor Dashboard
+          </button>
+        </div>
+      )}
+
       {/* Patient Greeting & Quick Stats */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -42,16 +75,26 @@ export const DashboardPage: React.FC<Props> = ({ onNavigateTab, onOpenUpload }) 
             </h1>
             {currentPatient?.isDemo && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 uppercase">
-                Demo Data
+                Demo Dataset
               </span>
             )}
           </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Patient: <strong className="text-slate-800">{currentPatient?.name}</strong> � {currentPatient?.age} years � {currentPatient?.sex} � DOB: {currentPatient?.dob}
+            Patient: <strong className="text-slate-800">{currentPatient?.name || userProfile?.displayName || 'Clinical User'}</strong> • {currentPatient?.age || 32} years • {currentPatient?.sex || 'Female'} • ID: <code className="text-xs font-mono">{currentPatient?.id?.substring(0, 12)}...</code>
           </p>
         </div>
 
         <div className="flex items-center gap-2">
+          {onOpenIntake && (
+            <button
+              onClick={onOpenIntake}
+              className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>Update Intake</span>
+            </button>
+          )}
+
           <button
             onClick={() => onNavigateTab('patients')}
             className="px-4 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs flex items-center gap-1.5 cursor-pointer"
@@ -61,6 +104,77 @@ export const DashboardPage: React.FC<Props> = ({ onNavigateTab, onOpenUpload }) 
           </button>
         </div>
       </div>
+
+      {/* Real Account Empty State Onboarding */}
+      {isRealAccountEmpty && (
+        <div className="bg-gradient-to-r from-sky-900 via-slate-900 to-sky-950 rounded-3xl p-6 sm:p-8 text-white space-y-6 shadow-xl border border-sky-800/40">
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/20 text-sky-300 text-xs font-bold uppercase tracking-wider">
+              <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+              <span>Workspace Initialized</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              Welcome, {userProfile?.displayName || 'Patient'}! Your Clinical Intelligence Workspace is ready.
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
+              MedLens transforms your scattered diagnostic reports into an organized, reference-range-verified patient record. Follow these three quick steps to get started:
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/15 space-y-3 flex flex-col justify-between">
+              <div>
+                <span className="text-xs font-mono font-bold text-sky-400 uppercase tracking-wider">Step 1</span>
+                <h3 className="text-base font-extrabold text-white mt-1">Clinical Intake</h3>
+                <p className="text-xs text-slate-300 mt-1">
+                  Document your symptoms, known conditions, and current medications with verified patient provenance.
+                </p>
+              </div>
+              <button
+                onClick={() => onOpenIntake ? onOpenIntake() : onNavigateTab('patients')}
+                className="w-full py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>Start Intake</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/15 space-y-3 flex flex-col justify-between">
+              <div>
+                <span className="text-xs font-mono font-bold text-sky-400 uppercase tracking-wider">Step 2</span>
+                <h3 className="text-base font-extrabold text-white mt-1">Upload Report</h3>
+                <p className="text-xs text-slate-300 mt-1">
+                  Upload a PDF, image, or paste report text to trigger the 10-stage OCR and biomarker normalization engine.
+                </p>
+              </div>
+              <button
+                onClick={onOpenUpload}
+                className="w-full py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-900 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>Upload Report</span>
+              </button>
+            </div>
+
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/15 space-y-3 flex flex-col justify-between">
+              <div>
+                <span className="text-xs font-mono font-bold text-sky-400 uppercase tracking-wider">Step 3</span>
+                <h3 className="text-base font-extrabold text-white mt-1">Connect Clinician</h3>
+                <p className="text-xs text-slate-300 mt-1">
+                  Ask your physician for their unique Doctor Code (<code className="text-sky-300 font-mono">MED-XXXXXX</code>) to grant them access to review your data.
+                </p>
+              </div>
+              <button
+                onClick={() => onNavigateTab('settings')}
+                className="w-full py-2.5 rounded-xl border border-white/30 hover:bg-white/10 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Stethoscope className="w-3.5 h-3.5" />
+                <span>Doctor Access</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 4 Top KPI Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
@@ -101,10 +215,14 @@ export const DashboardPage: React.FC<Props> = ({ onNavigateTab, onOpenUpload }) 
       </div>
 
       {/* AI Summary Highlight */}
-      <AISummaryCard onViewInsights={() => onNavigateTab('insights')} />
+      {patientLabs.length > 0 && (
+        <AISummaryCard onViewInsights={() => onNavigateTab('insights')} />
+      )}
 
       {/* Recharts Biomarker Trajectory */}
-      <LabTrendChart />
+      {patientLabs.length > 0 && (
+        <LabTrendChart />
+      )}
 
       {/* Main Grid: Latest Labs & Medication Overview */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -124,6 +242,9 @@ export const DashboardPage: React.FC<Props> = ({ onNavigateTab, onOpenUpload }) 
           onViewAll={() => onNavigateTab('reports')}
         />
       </div>
+
+      {/* Connected Clinicians Card for sovereign patient access management */}
+      <ConnectedDoctorsCard />
     </div>
   );
 };

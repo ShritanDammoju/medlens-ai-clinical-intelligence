@@ -32,7 +32,38 @@ export interface UserProfile {
   role: UserRole;
   photoURL?: string;
   isVerifiedReviewer?: boolean;
+  doctorCode?: string; // e.g. MED-782194
+  specialization?: string;
+  hospitalOrClinic?: string;
   createdAt: string;
+}
+
+export interface DoctorProfile {
+  uid: string;
+  email: string;
+  displayName: string;
+  doctorCode: string;
+  specialization?: string;
+  hospitalOrClinic?: string;
+  connectedPatientIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DoctorConnection {
+  id: string;
+  doctorId: string;
+  doctorName: string;
+  doctorEmail?: string;
+  doctorCode: string;
+  patientId: string;
+  patientName: string;
+  patientEmail?: string;
+  patientAge?: number;
+  patientSex?: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  requestedAt: string;
+  respondedAt?: string;
 }
 
 export interface SourceProvenance {
@@ -78,6 +109,7 @@ export interface ValidationIssue {
 
 export interface Patient {
   id: string;
+  userId?: string;
   name: string;
   age: number;
   sex: 'Male' | 'Female' | 'Other';
@@ -87,6 +119,7 @@ export interface Patient {
   bloodType?: string;
   emergencyContact?: string;
   notes?: string;
+  connectedDoctorIds?: string[];
   createdAt: string;
   updatedAt: string;
   isDemo?: boolean;

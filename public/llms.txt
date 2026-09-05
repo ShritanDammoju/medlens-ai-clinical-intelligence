@@ -1,0 +1,35 @@
+# MedLens — AI-Powered Clinical Information Intelligence
+> Transforming fragmented medical records into a structured, reference-range-verified clinical intelligence profile with complete data provenance and human clinician oversight.
+
+## Overview
+- **Product Name**: MedLens
+- **Tagline**: AI-Powered Clinical Information Intelligence
+- **Canonical Deployment**: https://medlens-ai-clinical-intelligence.vercel.app/
+- **GitHub Repository**: https://github.com/ShritanDammoju/medlens-ai-clinical-intelligence
+- **Primary Clinical Purpose**: Aggregating scattered diagnostic reports, normalising diverse biomarker terminologies, validating parameters strictly against source-explicit reference intervals, identifying cross-record therapy conflicts, and enabling verified physician-in-the-loop review.
+
+## Architectural Pipeline (10-Stage Deterministic Engine)
+1. **Multimodal Ingestion**: Accepts PDF diagnostic sheets, scanned lab images, clinical summaries, and patient intake forms.
+2. **Text Extraction & Tokenization**: OCR tokenization preserving tabular lab layouts and row groupings.
+3. **Completeness Validation**: Validates whether extracted rows contain required numerical values, units, and laboratory identifiers.
+4. **Terminology Normalization**: Maps diverse aliases (e.g. `Hb`, `HGB`, `Haemoglobin`) to standardized clinical terms (`Hemoglobin`) while recording verbatim source tokens.
+5. **Source-Bound Reference Interval Extraction**: Extracts reference ranges explicitly stated on the originating laboratory document. If a range is omitted by the source laboratory, it is marked as `Cannot determine` rather than hallucinating population averages.
+6. **Cross-Record Conflict Scanning**: Scans patient medications, allergies, and lab results across multiple historical reports to detect contradictory dosages, contraindications, or conflicting diagnosis timelines.
+7. **Clinical Gap Detection**: Flags omitted baseline tests (e.g., missing kidney function panels alongside elevated blood glucose).
+8. **Clarification Question Synthesis**: Generates targeted questions for the clinician to ask the patient during clinical consultation.
+9. **End-to-End Lineage & Provenance**: Attaches explicit tags (`Patient Provided`, `Extracted from Report`, `AI Inferred`, `Verified`) to every data point.
+10. **Human-in-the-Loop Review**: Clinician verification portal with granular override and audit logging for every adjusted value.
+
+## Patient–Doctor Connection Architecture
+- **Doctor Code System**: Clinicians receive a unique alphanumeric code (`MED-XXXXXX`).
+- **Authorization Workflow**: Patients submit this code to transmit a connection request. Doctors approve or decline incoming requests from their dedicated Doctor Dashboard.
+- **Sovereign Privacy**: Patients can immediately revoke clinician access at any time with one click.
+
+## Regulatory & Standards Alignment
+- **HIPAA Privacy & Security Rules** (45 CFR Part 160 and Part 164)
+- **HL7 FHIR Release 4** (Fast Healthcare Interoperability Resources) Observation & DiagnosticReport structures
+- **FDA Action Plan on AI/ML-Enabled Medical Devices** (Transparency and human clinician accountability)
+- **NIH NCBI Reference Range Methodology** (Demographic and instrument-specific variability)
+
+## Clinical Disclaimer
+MedLens provides assistive clinical information intelligence and information synthesis. It does NOT provide medical diagnosis or replace licensed physician consultation. All laboratory parameters and medication recommendations must be verified by a qualified healthcare professional.

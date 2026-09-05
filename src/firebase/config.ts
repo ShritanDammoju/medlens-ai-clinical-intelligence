@@ -1,20 +1,20 @@
-﻿import { initializeApp, getApps, getApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'medlens-e06ad.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'medlens-e06ad',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'medlens-e06ad.firebasestorage.app',
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
   appId: import.meta.env.VITE_FIREBASE_APP_ID || ''
 };
 
 export const isFirebaseConfigured = Boolean(
   firebaseConfig.apiKey && 
-  firebaseConfig.projectId && 
+  firebaseConfig.apiKey.trim().length > 10 &&
   firebaseConfig.apiKey !== 'AIzaSyDemoDummyApiKeyForLocalHackathonTesting'
 );
 
@@ -24,11 +24,11 @@ export const app = !getApps().length
         ? firebaseConfig
         : {
             apiKey: 'AIzaSyDemoDummyApiKeyForLocalHackathonTesting',
-            authDomain: 'medlens-demo.firebaseapp.com',
-            projectId: 'medlens-demo',
-            storageBucket: 'medlens-demo.appspot.com',
+            authDomain: 'medlens-e06ad.firebaseapp.com',
+            projectId: 'medlens-e06ad',
+            storageBucket: 'medlens-e06ad.firebasestorage.app',
             messagingSenderId: '123456789012',
-            appId: '1:123456789012:web:demo1234567890'
+            appId: '1:123456789012:web:medlensweb'
           }
     )
   : getApp();

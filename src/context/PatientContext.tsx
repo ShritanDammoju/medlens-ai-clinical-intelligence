@@ -1,4 +1,4 @@
-﻿import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import {
   Patient,
   MedicalReport,
@@ -13,11 +13,35 @@ import {
   AIInsightSummary,
   SourceProvenance,
   VerificationStatus,
-  AuditEntry
+  AuditEntry,
+  DoctorConnection
 } from '../types/medical';
-import { loadAppState, saveAppState, initializeWithDemoData, AppState } from '../utils/storage';
+import { 
+  loadUserAppState, 
+  saveUserAppState, 
+  initializeWithDemoData, 
+  createEmptyAppState, 
+  AppState 
+} from '../utils/storage';
+import { useAuth } from '../firebase/AuthContext';
 import { getAIMode, generatePatientInsights, AIMode } from '../services/aiService';
 import { evaluateLabValue } from '../utils/referenceRanges';
+import { 
+  getDoctorByCode,
+  sendConnectionRequest,
+  getDoctorPendingRequests,
+  getDoctorAcceptedConnections,
+  getPatientConnections,
+  respondToConnectionRequest,
+  revokeDoctorConnection,
+  savePatientRecordToFirestore,
+  loadPatientReportsFromFirestore,
+  loadPatientLabsFromFirestore,
+  saveReportAndLabsToFirestore,
+  saveLabsToFirestore,
+  saveAuditEntryToFirestore,
+  getPatientById
+} from '../firebase/firestore';
 
 interface PatientContextType {
   state: AppState;
@@ -27,6 +51,9 @@ interface PatientContextType {
   searchQuery: string;
   selectedSource: SourceProvenance | null;
   auditLog: AuditEntry[];
+  connections: DoctorConnection[];
+  pendingDoctorRequests: DoctorConnection[];
+  isReviewingExternalPatient: boolean;
   setSearchQuery: (query: string) => void;
   setCurrentPatientId: (id: string) => void;
   loadDemoPatient: () => void;
@@ -38,21 +65,143 @@ interface PatientContextType {
   refreshAIInsights: () => Promise<void>;
   openSourceInspector: (provenance: SourceProvenance) => void;
   closeSourceInspector: () => void;
+  connectDoctorByCode: (code: string) => Promise<{ success: boolean; message: string }>;
+  respondToConnection: (connectionId: string, status: 'accepted' | 'rejected') => Promise<void>;
+  revokeConnection: (connectionId: string) => Promise<void>;
+  inspectPatientRecord: (patientId: string, patientName?: string) => Promise<void>;
+  exitPatientReview: () => void;
+  refreshConnections: () => Promise<void>;
 }
 
 const PatientContext = createContext<PatientContextType | undefined>(undefined);
 
 export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [state, setState] = useState<AppState>(() => loadAppState());
+  const { userProfile, isDemoMode, role, enterDemoMode } = useAuth();
+
+  const [state, setState] = useState<AppState>(() => {
+    if (isDemoMode) {
+      return initializeWithDemoData();
+    }
+    if (userProfile) {
+      const cached = loadUserAppState(userProfile.uid);
+      if (cached.patients.length > 0) return cached;
+    }
+    return createEmptyAppState();
+  });
+
   const [isAnalyzingAI, setIsAnalyzingAI] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedSource, setSelectedSource] = useState<SourceProvenance | null>(null);
+  const [connections, setConnections] = useState<DoctorConnection[]>([]);
+  const [pendingDoctorRequests, setPendingDoctorRequests] = useState<DoctorConnection[]>([]);
+  const [isReviewingExternalPatient, setIsReviewingExternalPatient] = useState<boolean>(false);
 
   const aiMode = getAIMode();
 
+  // Load user-specific state or demo state whenever auth mode changes
   useEffect(() => {
-    saveAppState(state);
-  }, [state]);
+    if (isDemoMode) {
+      setState(initializeWithDemoData());
+      setIsReviewingExternalPatient(false);
+      return;
+    }
+
+    if (userProfile) {
+      // Load cached user state
+      const userState = loadUserAppState(userProfile.uid);
+      if (userState.patients.length > 0) {
+        setState(userState);
+      } else if (userProfile.role === 'patient') {
+        // Initial profile for patient
+        const newPat: Patient = {
+          id: userProfile.uid,
+          userId: userProfile.uid,
+          name: userProfile.displayName || 'Patient',
+          age: 32,
+          sex: 'Female',
+          dob: '1994-05-15',
+          email: userProfile.email,
+          connectedDoctorIds: [],
+          createdAt: userProfile.createdAt,
+          updatedAt: new Date().toISOString(),
+          isDemo: false
+        };
+        const freshState: AppState = {
+          ...createEmptyAppState(),
+          patients: [newPat],
+          activePatientId: newPat.id
+        };
+        setState(freshState);
+        saveUserAppState(userProfile.uid, freshState);
+        savePatientRecordToFirestore(newPat);
+      } else {
+        // Doctor start state
+        setState(createEmptyAppState());
+      }
+
+      // Sync from Firestore in background
+      (async () => {
+        try {
+          if (userProfile.role === 'patient') {
+            const [remoteReports, remoteLabs] = await Promise.all([
+              loadPatientReportsFromFirestore(userProfile.uid),
+              loadPatientLabsFromFirestore(userProfile.uid)
+            ]);
+
+            if (remoteReports.length > 0 || remoteLabs.length > 0) {
+              setState(prev => ({
+                ...prev,
+                reports: remoteReports.length > 0 ? remoteReports : prev.reports,
+                labs: remoteLabs.length > 0 ? remoteLabs : prev.labs
+              }));
+            }
+          }
+        } catch (e) {
+          console.warn('Firestore sync note:', e);
+        }
+      })();
+    } else {
+      setState(createEmptyAppState());
+    }
+  }, [isDemoMode, userProfile?.uid, userProfile?.role]);
+
+  // Persist state to scoped storage
+  useEffect(() => {
+    if (!isDemoMode && userProfile) {
+      saveUserAppState(userProfile.uid, state);
+    }
+  }, [state, isDemoMode, userProfile?.uid]);
+
+  // Fetch connections for patient or doctor
+  const refreshConnections = useCallback(async () => {
+    if (isDemoMode) {
+      setConnections([]);
+      setPendingDoctorRequests([]);
+      return;
+    }
+
+    if (!userProfile) return;
+
+    try {
+      if (userProfile.role === 'doctor') {
+        const [pending, accepted] = await Promise.all([
+          getDoctorPendingRequests(userProfile.uid),
+          getDoctorAcceptedConnections(userProfile.uid)
+        ]);
+        setPendingDoctorRequests(pending);
+        setConnections(accepted);
+      } else {
+        const patientConns = await getPatientConnections(userProfile.uid);
+        setConnections(patientConns);
+      }
+    } catch (e) {
+      console.warn('Refresh connections notice:', e);
+    }
+  }, [isDemoMode, userProfile?.uid, userProfile?.role]);
+
+  useEffect(() => {
+    refreshConnections();
+  }, [refreshConnections]);
 
   const currentPatient = state.patients.find(p => p.id === state.activePatientId) || state.patients[0] || null;
 
@@ -61,19 +210,22 @@ export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const loadDemoPatient = () => {
+    enterDemoMode();
     const freshDemoState = initializeWithDemoData();
     setState(freshDemoState);
+    setIsReviewingExternalPatient(false);
   };
 
   const addPatient = (patientData: Omit<Patient, 'id' | 'createdAt' | 'updatedAt'>): Patient => {
-    const newId = 'pat-' + Math.random().toString(36).substring(2, 9);
+    const newId = userProfile && !isDemoMode ? userProfile.uid : 'pat-' + Math.random().toString(36).substring(2, 9);
     const now = new Date().toISOString();
     const newPatient: Patient = {
       ...patientData,
       id: newId,
+      userId: userProfile?.uid,
       createdAt: now,
       updatedAt: now,
-      isDemo: false
+      isDemo: Boolean(isDemoMode)
     };
 
     const newTimelineEvent: TimelineEvent = {
@@ -81,7 +233,7 @@ export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ child
       patientId: newId,
       date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
       title: 'Patient Intake Completed',
-      description: `New patient record initiated for ${newPatient.name}.`,
+      description: `Clinical intake profile established for ${newPatient.name}.`,
       category: 'intake',
       sourceName: 'Patient Intake Form',
       provenance: 'Patient Provided',
@@ -90,33 +242,54 @@ export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     setState(prev => ({
       ...prev,
-      patients: [newPatient, ...prev.patients],
+      patients: [newPatient, ...prev.patients.filter(p => p.id !== newId)],
       activePatientId: newId,
       timeline: [newTimelineEvent, ...prev.timeline]
     }));
+
+    if (!isDemoMode) {
+      savePatientRecordToFirestore(newPatient);
+    }
 
     return newPatient;
   };
 
   const addReportAndLabs = (report: MedicalReport, newLabs: LabResult[]) => {
+    const targetPatientId = currentPatient?.id || (userProfile?.uid ?? report.patientId);
+
+    const enrichedReport: MedicalReport = {
+      ...report,
+      patientId: targetPatientId,
+      uploadedBy: userProfile?.uid || report.uploadedBy
+    };
+
+    const enrichedLabs = newLabs.map(l => ({
+      ...l,
+      patientId: targetPatientId
+    }));
+
     const newTimelineEvent: TimelineEvent = {
       id: 'time-' + Date.now(),
-      patientId: report.patientId,
+      patientId: targetPatientId,
       date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-      title: `${report.title} Processed`,
-      description: `Extracted and normalized ${newLabs.length} laboratory test items from ${report.fileName}.`,
+      title: `${enrichedReport.title} Processed`,
+      description: `Extracted and verified ${enrichedLabs.length} biomarker items from ${enrichedReport.fileName}.`,
       category: 'report',
-      sourceName: report.fileName,
+      sourceName: enrichedReport.fileName,
       provenance: 'Extracted from Report',
-      relatedEntityId: report.id
+      relatedEntityId: enrichedReport.id
     };
 
     setState(prev => ({
       ...prev,
-      reports: [report, ...prev.reports],
-      labs: [...newLabs, ...prev.labs],
+      reports: [enrichedReport, ...prev.reports.filter(r => r.id !== enrichedReport.id)],
+      labs: [...enrichedLabs, ...prev.labs],
       timeline: [newTimelineEvent, ...prev.timeline]
     }));
+
+    if (!isDemoMode) {
+      saveReportAndLabsToFirestore(enrichedReport, enrichedLabs);
+    }
   };
 
   const updateLabVerification = (
@@ -124,7 +297,7 @@ export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ child
     status: VerificationStatus,
     updatedValue?: string,
     updatedRange?: string,
-    reviewerName: string = 'Dr. Evelyn Reed, MD'
+    reviewerName: string = userProfile?.displayName || 'Dr. Verified Clinician'
   ) => {
     setState(prev => {
       let targetLabName = 'Biomarker';
@@ -156,7 +329,6 @@ export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ child
         };
       });
 
-      // Append to audit log
       const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
       const newAuditEntry: AuditEntry = {
@@ -170,6 +342,11 @@ export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ child
         action: status === 'verified' ? 'verify' : status === 'rejected' ? 'reject' : 'edit',
         verificationStatus: status
       };
+
+      if (!isDemoMode) {
+        saveLabsToFirestore(updatedLabs);
+        saveAuditEntryToFirestore(newAuditEntry);
+      }
 
       return {
         ...prev,
@@ -199,10 +376,14 @@ export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ child
         originalValue: 'Unresolved',
         updatedValue: 'Reconciled & Verified by Clinician',
         timestamp: `${dateStr} ${timeStr}`,
-        reviewerName: 'Dr. Evelyn Reed, MD',
+        reviewerName: userProfile?.displayName || 'Dr. Reviewer',
         action: 'acknowledge_conflict',
         verificationStatus: 'verified'
       };
+
+      if (!isDemoMode) {
+        saveAuditEntryToFirestore(newAuditEntry);
+      }
 
       return {
         ...prev,
@@ -241,6 +422,96 @@ export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
+  // Connect patient to doctor via code
+  const connectDoctorByCode = async (code: string): Promise<{ success: boolean; message: string }> => {
+    if (!currentPatient) {
+      return { success: false, message: 'Please complete your patient profile before connecting.' };
+    }
+
+    const cleanCode = code.trim().toUpperCase();
+    if (!cleanCode.startsWith('MED-') || cleanCode.length < 8) {
+      return { success: false, message: 'Invalid format. Doctor codes start with MED- followed by 6 characters.' };
+    }
+
+    try {
+      const doctor = await getDoctorByCode(cleanCode);
+      if (!doctor) {
+        return { success: false, message: `No clinician found with code ${cleanCode}. Please check the code with your doctor.` };
+      }
+
+      // Check if already requested or connected
+      const existing = connections.find(c => c.doctorId === doctor.uid);
+      if (existing) {
+        if (existing.status === 'accepted') {
+          return { success: false, message: `You are already connected with ${doctor.displayName}.` };
+        }
+        return { success: false, message: `Connection request already pending for ${doctor.displayName}.` };
+      }
+
+      const req = await sendConnectionRequest(currentPatient, doctor);
+      setConnections(prev => [...prev.filter(c => c.id !== req.id), req]);
+      return { success: true, message: `Connection request sent to ${doctor.displayName} (${doctor.specialization || 'Clinician'}). Awaiting approval.` };
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'Failed to send connection request.' };
+    }
+  };
+
+  const respondToConnection = async (connectionId: string, status: 'accepted' | 'rejected') => {
+    try {
+      await respondToConnectionRequest(connectionId, status);
+      await refreshConnections();
+    } catch (e) {
+      console.warn('Respond connection error:', e);
+    }
+  };
+
+  const revokeConnection = async (connectionId: string) => {
+    try {
+      await revokeDoctorConnection(connectionId);
+      setConnections(prev => prev.filter(c => c.id !== connectionId));
+      setPendingDoctorRequests(prev => prev.filter(c => c.id !== connectionId));
+    } catch (e) {
+      console.warn('Revoke connection error:', e);
+    }
+  };
+
+  // Inspect connected patient's record (Doctor view)
+  const inspectPatientRecord = async (patientId: string, patientName?: string) => {
+    try {
+      const [remotePatient, remoteReports, remoteLabs] = await Promise.all([
+        getPatientById(patientId),
+        loadPatientReportsFromFirestore(patientId),
+        loadPatientLabsFromFirestore(patientId)
+      ]);
+
+      const activePat: Patient = remotePatient || {
+        id: patientId,
+        name: patientName || 'Connected Patient',
+        age: 35,
+        sex: 'Other',
+        dob: '1989-01-01',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      setState(prev => ({
+        ...prev,
+        patients: [activePat, ...prev.patients.filter(p => p.id !== activePat.id)],
+        activePatientId: activePat.id,
+        reports: remoteReports,
+        labs: remoteLabs
+      }));
+
+      setIsReviewingExternalPatient(true);
+    } catch (err) {
+      console.warn('Failed to load patient record:', err);
+    }
+  };
+
+  const exitPatientReview = () => {
+    setIsReviewingExternalPatient(false);
+  };
+
   const openSourceInspector = (provenance: SourceProvenance) => {
     setSelectedSource(provenance);
   };
@@ -259,6 +530,9 @@ export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ child
         searchQuery,
         selectedSource,
         auditLog: state.auditLog || [],
+        connections,
+        pendingDoctorRequests,
+        isReviewingExternalPatient,
         setSearchQuery,
         setCurrentPatientId,
         loadDemoPatient,
@@ -269,7 +543,13 @@ export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ child
         resolveConflict,
         refreshAIInsights,
         openSourceInspector,
-        closeSourceInspector
+        closeSourceInspector,
+        connectDoctorByCode,
+        respondToConnection,
+        revokeConnection,
+        inspectPatientRecord,
+        exitPatientReview,
+        refreshConnections
       }}
     >
       {children}

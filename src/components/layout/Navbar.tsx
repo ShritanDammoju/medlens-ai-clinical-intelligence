@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React, { useState } from 'react';
 import { usePatient } from '../../context/PatientContext';
 import { useAuth } from '../../firebase/AuthContext';
 import { 
@@ -13,21 +13,27 @@ import {
   LogIn,
   LogOut,
   Stethoscope,
-  User
+  User,
+  Copy,
+  Check,
+  Sparkles
 } from 'lucide-react';
+import { NavTab } from './Sidebar';
 
 interface Props {
   onOpenIntake: () => void;
   onOpenUpload: () => void;
   onToggleMobileSidebar: () => void;
   onNavigateToExport: () => void;
+  onNavigateTab?: (tab: NavTab) => void;
 }
 
 export const Navbar: React.FC<Props> = ({
   onOpenIntake,
   onOpenUpload,
   onToggleMobileSidebar,
-  onNavigateToExport
+  onNavigateToExport,
+  onNavigateTab
 }) => {
   const { 
     currentPatient, 
@@ -36,10 +42,20 @@ export const Navbar: React.FC<Props> = ({
     loadDemoPatient, 
     searchQuery, 
     setSearchQuery,
-    aiMode 
+    isReviewingExternalPatient,
+    exitPatientReview
   } = usePatient();
 
   const { userProfile, role, isDemoMode, openAuthModal, logout } = useAuth();
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  const handleCopyCode = () => {
+    if (userProfile?.doctorCode) {
+      navigator.clipboard.writeText(userProfile.doctorCode);
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2000);
+    }
+  };
 
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200/80 shadow-xs no-print">
@@ -61,7 +77,11 @@ export const Navbar: React.FC<Props> = ({
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="font-extrabold text-lg tracking-tight text-slate-900">Med<span className="text-sky-600">Lens</span></span>
-                <span className="text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 border border-sky-200">
+                <span className={`text-[10px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full border ${
+                  role === 'doctor' 
+                    ? 'bg-sky-100 text-sky-800 border-sky-200' 
+                    : 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                }`}>
                   {role === 'doctor' ? 'CLINICIAN' : 'PATIENT'}
                 </span>
               </div>
@@ -91,53 +111,51 @@ export const Navbar: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Right: Actions, Patient Selector & Demo Loader */}
+        {/* Right: Actions, Identity & Controls */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Role / Auth Switcher Badge */}
-          <button
-            onClick={() => openAuthModal(role === 'doctor' ? 'patient' : 'doctor')}
-            title="Switch between Patient and Clinician Reviewer role"
-            className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors cursor-pointer border border-slate-200/80"
-          >
-            {role === 'doctor' ? (
-              <>
-                <Stethoscope className="w-3.5 h-3.5 text-sky-600" />
-                <span>Dr. Mode</span>
-              </>
-            ) : (
-              <>
-                <User className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Patient</span>
-              </>
-            )}
-          </button>
-
-          {/* Load Demo Patient Button */}
-          <button
-            onClick={loadDemoPatient}
-            title="Reset to Alex Carter Hackathon Demo Dataset"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-          >
-            <RotateCcw className="w-3.5 h-3.5 text-sky-600" />
-            <span className="hidden sm:inline">Load Demo Patient</span>
-            <span className="sm:hidden">Demo</span>
-          </button>
-
-          {/* Patient Dropdown Selector */}
-          <div className="relative">
-            <select
-              value={currentPatient?.id || ''}
-              onChange={(e) => setCurrentPatientId(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
+          {/* Doctor Code Quick Access Badge (for Clinicians) */}
+          {role === 'doctor' && userProfile?.doctorCode && (
+            <button
+              onClick={handleCopyCode}
+              title="Click to copy your Doctor Code for patients"
+              className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-900 text-xs font-semibold border border-sky-200/80 transition-colors cursor-pointer"
             >
-              {state.patients.map(p => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.age}y, {p.sex})
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
+              <span className="text-[10px] text-sky-600 uppercase font-bold">Code:</span>
+              <span className="font-mono font-bold text-sky-800">{userProfile.doctorCode}</span>
+              {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-sky-500" />}
+            </button>
+          )}
+
+          {/* Load Demo Patient (only shown in Demo Mode or when not logged in) */}
+          {isDemoMode && (
+            <button
+              onClick={loadDemoPatient}
+              title="Reset to Alex Carter Hackathon Demo Dataset"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+              <span className="hidden sm:inline">Reset Demo</span>
+              <span className="sm:hidden">Reset</span>
+            </button>
+          )}
+
+          {/* Patient Selector (when multiple patients exist in clinician view) */}
+          {state.patients.length > 1 && (
+            <div className="relative">
+              <select
+                value={currentPatient?.id || ''}
+                onChange={(e) => setCurrentPatientId(e.target.value)}
+                className="appearance-none pl-3 pr-8 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
+              >
+                {state.patients.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.age}y)
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          )}
 
           {/* New Patient Intake Button */}
           <button
@@ -145,35 +163,44 @@ export const Navbar: React.FC<Props> = ({
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 text-white hover:bg-slate-800 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
           >
             <UserPlus className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">New Patient</span>
+            <span className="hidden sm:inline">New Intake</span>
           </button>
 
           {/* Export Patient Record */}
           <button
             onClick={onNavigateToExport}
-            title="Export Patient Record (Print-ready PDF summary)"
+            title="Export Patient Record (Print-ready summary)"
             className="p-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
           >
             <Printer className="w-4 h-4 text-slate-600" />
             <span className="hidden md:inline">Export</span>
           </button>
 
-          {/* Sign In / Out */}
+          {/* Sign In / Sign Out */}
           {userProfile ? (
-            <button
-              onClick={() => logout()}
-              title="Sign Out"
-              className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-2 pl-1 border-l border-slate-200">
+              <div className="hidden xl:flex flex-col text-right">
+                <span className="text-xs font-bold text-slate-800 truncate max-w-[130px]">
+                  {userProfile.displayName}
+                </span>
+                <span className="text-[10px] text-slate-400 capitalize">{userProfile.role}</span>
+              </div>
+
+              <button
+                onClick={() => logout()}
+                title="Sign Out of MedLens"
+                className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
           ) : (
             <button
               onClick={() => openAuthModal('patient')}
-              title="Sign In with Google"
-              className="p-1.5 text-slate-500 hover:text-sky-600 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
             >
-              <LogIn className="w-4 h-4" />
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Sign In</span>
             </button>
           )}
         </div>

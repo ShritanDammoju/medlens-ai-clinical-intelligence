@@ -12,12 +12,15 @@ import {
   Settings, 
   ShieldCheck,
   Activity,
+  Stethoscope,
   X
 } from 'lucide-react';
 import { usePatient } from '../../context/PatientContext';
+import { useAuth } from '../../firebase/AuthContext';
 
 export type NavTab = 
   | 'overview' 
+  | 'doctor_portal'
   | 'patients' 
   | 'reports' 
   | 'medications' 
@@ -42,15 +45,27 @@ export const Sidebar: React.FC<Props> = ({
   mobileOpen,
   onCloseMobile
 }) => {
-  const { state } = usePatient();
+  const { state, pendingDoctorRequests, isReviewingExternalPatient } = usePatient();
+  const { role, userProfile } = useAuth();
 
   const needsReviewCount = state.labs.filter(l => l.verificationStatus === 'needs_review').length +
     state.meds.filter(m => m.verificationStatus === 'needs_review').length;
 
   const conflictsCount = state.conflicts.filter(c => !c.resolved).length;
 
+  const isDoctor = role === 'doctor';
+
   const navItems = [
-    { id: 'overview' as NavTab, label: 'Overview', icon: LayoutDashboard },
+    ...(isDoctor ? [
+      { 
+        id: 'doctor_portal' as NavTab, 
+        label: 'Doctor Dashboard', 
+        icon: Stethoscope,
+        badge: pendingDoctorRequests.length > 0 ? `${pendingDoctorRequests.length} req` : undefined,
+        badgeColor: 'bg-emerald-400 text-slate-950 font-bold'
+      }
+    ] : []),
+    { id: 'overview' as NavTab, label: isDoctor ? 'Patient Overview' : 'Overview', icon: LayoutDashboard },
     { id: 'patients' as NavTab, label: 'Patient Record', icon: Users },
     { id: 'reports' as NavTab, label: 'Reports', icon: FileText, count: state.reports.length },
     { id: 'medications' as NavTab, label: 'Medications', icon: Pill, count: state.meds.length },
@@ -71,7 +86,7 @@ export const Sidebar: React.FC<Props> = ({
       badge: needsReviewCount > 0 ? `${needsReviewCount}` : undefined,
       badgeColor: 'bg-amber-100 text-amber-800'
     },
-    { id: 'settings' as NavTab, label: 'Settings & Privacy', icon: Settings },
+    { id: 'settings' as NavTab, label: 'Settings & Access', icon: Settings },
   ];
 
   return (
@@ -110,8 +125,13 @@ export const Sidebar: React.FC<Props> = ({
 
         {/* Navigation links */}
         <div className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          <div className="px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-            Clinical Workflow
+          <div className="px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+            <span>Clinical Workflow</span>
+            {isDoctor && (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-400 border border-sky-500/30">
+                DOCTOR
+              </span>
+            )}
           </div>
 
           {navItems.map((item) => {

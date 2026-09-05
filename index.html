@@ -2,13 +2,149 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>??</text></svg>" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="MedLens � AI-Powered Clinical Information Intelligence. Transform fragmented medical information into a structured, understandable, and reviewable patient record." />
+    
+    <!-- Primary Metadata -->
+    <title>MedLens — AI-Powered Clinical Information Intelligence</title>
+    <meta name="title" content="MedLens — AI-Powered Clinical Information Intelligence" />
+    <meta name="description" content="Transform fragmented diagnostic reports into a structured, reference-range-verified patient record with complete data provenance and clinician-in-the-loop review." />
+    <meta name="keywords" content="clinical intelligence, medical AI, lab report parser, reference intervals, medical records, EHR intelligence, clinical provenance, healthcare hackathon" />
+    <meta name="author" content="MedLens Clinical Technologies" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://medlens-ai-clinical-intelligence.vercel.app/" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://medlens-ai-clinical-intelligence.vercel.app/" />
+    <meta property="og:title" content="MedLens — AI-Powered Clinical Information Intelligence" />
+    <meta property="og:description" content="Transform fragmented diagnostic reports into a structured, reference-range-verified patient record with complete data provenance and clinician-in-the-loop review." />
+    <meta property="og:image" content="https://medlens-ai-clinical-intelligence.vercel.app/favicon.svg" />
+    <meta property="og:site_name" content="MedLens" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://medlens-ai-clinical-intelligence.vercel.app/" />
+    <meta property="twitter:title" content="MedLens — AI-Powered Clinical Information Intelligence" />
+    <meta property="twitter:description" content="Transform fragmented diagnostic reports into a structured, reference-range-verified patient record with complete data provenance and clinician-in-the-loop review." />
+    <meta property="twitter:image" content="https://medlens-ai-clinical-intelligence.vercel.app/favicon.svg" />
+
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <title>MedLens � AI-Powered Clinical Information Intelligence</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Schema.org JSON-LD Structured Data for AEO / AI Discoverability -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "@id": "https://medlens-ai-clinical-intelligence.vercel.app/#website",
+          "url": "https://medlens-ai-clinical-intelligence.vercel.app/",
+          "name": "MedLens",
+          "description": "AI-Powered Clinical Information Intelligence platform for medical report synthesis and laboratory verification.",
+          "inLanguage": "en-US"
+        },
+        {
+          "@type": "SoftwareApplication",
+          "@id": "https://medlens-ai-clinical-intelligence.vercel.app/#application",
+          "name": "MedLens Clinical Intelligence",
+          "applicationCategory": "HealthApplication",
+          "operatingSystem": "Web Browser",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          },
+          "description": "Transforms scattered clinical documents and laboratory panels into structured patient health profiles with strict source-explicit reference range validation."
+        },
+        {
+          "@type": "Organization",
+          "@id": "https://medlens-ai-clinical-intelligence.vercel.app/#organization",
+          "name": "MedLens Technologies",
+          "url": "https://medlens-ai-clinical-intelligence.vercel.app/",
+          "logo": "https://medlens-ai-clinical-intelligence.vercel.app/favicon.svg",
+          "sameAs": [
+            "https://github.com/ShritanDammoju/medlens-ai-clinical-intelligence"
+          ]
+        },
+        {
+          "@type": "FAQPage",
+          "@id": "https://medlens-ai-clinical-intelligence.vercel.app/#faq",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "What is MedLens and what problem does it solve?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "MedLens is an AI-powered clinical information intelligence platform that solves the critical problem of medical record fragmentation. It consolidates laboratory panels, clinical notes, medications, and allergies into a unified, traceable timeline with source-bound reference range verification."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "How does MedLens handle laboratory reference intervals?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "MedLens strictly bounds biomarker evaluations to the reference intervals printed on the originating source laboratory report. MedLens never hallucinates or synthesizes population reference ranges. If a range is omitted in the source document, it is explicitly flagged as 'Cannot determine'."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "How does the patient-doctor connection system work?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Every clinician receives a unique Doctor Code (e.g. MED-XXXXXX). Patients enter this code in their portal to send an access request. Once approved by the physician on their Doctor Dashboard, the clinician can review reports and perform human verification. Patients maintain full sovereignty and can revoke access at any time."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Does MedLens provide automated medical diagnoses?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "No. MedLens is non-diagnostic clinical intelligence software designed to synthesize, organize, and trace medical data. All diagnostic and treatment decisions require human clinician verification."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "How does data provenance work in MedLens?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Every discrete data point (biomarkers, medications, conditions) is stamped with an immutable provenance label: 'Patient Provided', 'Extracted from Report', 'AI Inferred', or 'Verified', including verbatim snippets from the original source file."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "What file formats does MedLens support for report ingestion?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "MedLens supports PDF clinical files, scanned lab images (PNG, JPG, JPEG), and direct raw text or clinical EHR exports."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "How does MedLens ensure patient privacy and security?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "MedLens implements role-based security rules in Cloud Firestore, client-side isolation, and HIPAA-aligned architecture where data is only accessible to the patient and explicitly authorized clinicians."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Can clinicians review and override AI-extracted values?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. MedLens provides a dedicated Verification Center where clinicians can inspect raw text side-by-side with extracted parameters, edit values, verify normal/abnormal statuses, and log reasons to an audit trail."
+              }
+            }
+          ]
+        }
+      ]
+    }
+    </script>
   </head>
   <body class="bg-slate-50 text-slate-900 antialiased font-sans selection:bg-sky-100 selection:text-sky-900">
     <div id="root"></div>

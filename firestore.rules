@@ -1,4 +1,4 @@
-﻿rules_version = '2';
+rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
@@ -16,25 +16,52 @@ service cloud.firestore {
     }
     
     function isDoctor() {
-      return isAuthenticated() && getUserRole() == 'doctor';
+      return isAuthenticated() && (getUserRole() == 'doctor' || exists(/databases/$(database)/documents/doctors/$(request.auth.uid)));
     }
 
-    // User Profile Rules: Users can only read/write their own profile; role cannot be self-escalated
+    // User Profile Rules: Users can read/write their own profile
     match /users/{userId} {
       allow read: if isAuthenticated();
       allow create: if isOwner(userId) && request.resource.data.role in ['patient', 'doctor'];
-      allow update: if isOwner(userId) && request.resource.data.role == resource.data.role;
+      allow update: if isOwner(userId);
     }
 
-    // Patient Records Rules: Patients read/write their own records; verified doctors can review
+    // Doctor Profiles: Authenticated users can read doctor code for connection verification
+    match /doctors/{doctorId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(doctorId);
+    }
+
+    // Doctor-Patient Connections: Either participant can read or manage
+    match /connections/{connId} {
+      allow read: if isAuthenticated() && (
+        resource.data.patientId == request.auth.uid || 
+        resource.data.doctorId == request.auth.uid
+      );
+      allow create: if isAuthenticated() && (
+        request.resource.data.patientId == request.auth.uid || 
+        request.resource.data.doctorId == request.auth.uid
+      );
+      allow update, delete: if isAuthenticated() && (
+        resource.data.patientId == request.auth.uid || 
+        resource.data.doctorId == request.auth.uid
+      );
+    }
+
+    // Patient Records Rules: Patients read/write their own records; doctors can review
     match /patients/{patientId} {
       allow read, write: if isOwner(patientId) || isDoctor();
     }
 
     // Medical Reports & Extracted Labs: Restricted strictly to owner or clinical reviewers
     match /reports/{reportId} {
-      allow read: if isAuthenticated() && (resource.data.uploadedBy == request.auth.uid || isDoctor());
-      allow write: if isAuthenticated() && request.resource.data.uploadedBy == request.auth.uid;
+      allow read: if isAuthenticated() && (resource.data.uploadedBy == request.auth.uid || resource.data.patientId == request.auth.uid || isDoctor());
+      allow write: if isAuthenticated() && (request.resource.data.uploadedBy == request.auth.uid || request.resource.data.patientId == request.auth.uid || isDoctor());
+    }
+
+    match /labs/{labId} {
+      allow read: if isAuthenticated() && (resource.data.patientId == request.auth.uid || isDoctor());
+      allow write: if isAuthenticated() && (request.resource.data.patientId == request.auth.uid || isDoctor());
     }
 
     match /labResults/{labId} {
@@ -51,13 +78,18 @@ service cloud.firestore {
     // Timeline Events
     match /timelineEvents/{eventId} {
       allow read: if isAuthenticated() && (resource.data.patientId == request.auth.uid || isDoctor());
-      allow write: if isAuthenticated() && request.resource.data.patientId == request.auth.uid;
+      allow write: if isAuthenticated() && (request.resource.data.patientId == request.auth.uid || isDoctor());
     }
 
     // Verifications & Audit Log: Doctors can write verifications; patients can read
     match /verifications/{verifId} {
       allow read: if isAuthenticated();
       allow write: if isDoctor();
+    }
+
+    match /auditLog/{logId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
     }
   }
 }
