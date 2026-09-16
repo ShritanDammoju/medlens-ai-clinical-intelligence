@@ -24,10 +24,12 @@ import { MedLensChatbot } from './components/chat/MedLensChatbot';
 import { AuthModal } from './components/auth/AuthModal';
 
 const AppContent: React.FC = () => {
-  const { loadDemoPatient, isReviewingExternalPatient } = usePatient();
-  const { userProfile, role, isDemoMode, exitDemoMode, openAuthModal } = useAuth();
+  const { isReviewingExternalPatient } = usePatient();
+  const { userProfile, role, openAuthModal } = useAuth();
   
-  const [viewMode, setViewMode] = useState<'landing' | 'app'>('landing');
+  const [viewMode, setViewMode] = useState<'landing' | 'app'>(() => {
+    return userProfile ? 'app' : 'landing';
+  });
   const [currentTab, setCurrentTab] = useState<NavTab>(() => {
     return role === 'doctor' ? 'doctor_portal' : 'overview';
   });
@@ -35,14 +37,20 @@ const AppContent: React.FC = () => {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isIntakeOpen, setIsIntakeOpen] = useState(false);
 
-  const handleLaunchDemo = () => {
-    loadDemoPatient();
-    setCurrentTab('overview');
-    setViewMode('app');
-  };
+  // Automatically switch between landing and authenticated app based on session
+  React.useEffect(() => {
+    if (userProfile) {
+      setViewMode('app');
+      if (role === 'doctor' && !isReviewingExternalPatient) {
+        setCurrentTab('doctor_portal');
+      }
+    } else {
+      setViewMode('landing');
+    }
+  }, [userProfile, role, isReviewingExternalPatient]);
 
   const handleEnterApp = () => {
-    if (!userProfile && !isDemoMode) {
+    if (!userProfile) {
       openAuthModal('patient');
       return;
     }
@@ -59,7 +67,6 @@ const AppContent: React.FC = () => {
       <>
         <LandingPage
           onEnterApp={handleEnterApp}
-          onLaunchDemo={handleLaunchDemo}
         />
         <AuthModal />
       </>
@@ -75,7 +82,7 @@ const AppContent: React.FC = () => {
     switch (currentTab) {
       case 'overview':
         // If doctor without active patient inspection, show Doctor Dashboard
-        if (role === 'doctor' && !isReviewingExternalPatient && !isDemoMode) {
+        if (role === 'doctor' && !isReviewingExternalPatient) {
           return <DoctorDashboard onNavigateTab={(tab) => setCurrentTab(tab)} />;
         }
         return (
@@ -123,29 +130,6 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col selection:bg-sky-100 selection:text-sky-900">
-      {/* Persistent Amber Demo Banner (ONLY when demo mode is active) */}
-      {isDemoMode && (
-        <div className="bg-amber-400 text-slate-950 px-4 py-2 text-xs font-bold shadow-xs border-b border-amber-500 z-50">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 max-w-7xl mx-auto">
-            <div className="flex items-center gap-2">
-              <span className="bg-slate-950 text-amber-300 text-[10px] px-1.5 py-0.5 rounded font-mono uppercase tracking-wider">
-                DEMO MODE ACTIVE
-              </span>
-              <span>Viewing simulated Alex Carter clinical records. Actions are in-memory and not persisted to a real clinical account.</span>
-            </div>
-            <button
-              onClick={() => {
-                exitDemoMode();
-                setViewMode('landing');
-              }}
-              className="px-3 py-1 rounded-lg bg-slate-950 hover:bg-slate-800 text-white text-[11px] font-bold cursor-pointer transition-colors shrink-0 self-start sm:self-auto"
-            >
-              Exit Demo Mode
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Top Persistent Safety Banner */}
       <SafetyBanner />
 

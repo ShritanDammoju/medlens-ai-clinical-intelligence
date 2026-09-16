@@ -1,168 +1,217 @@
 import React, { useState } from 'react';
+import { useAuth } from '../firebase/AuthContext';
 import { usePatient } from '../context/PatientContext';
 import { 
   Settings, 
   ShieldCheck, 
   Lock, 
-  RotateCcw, 
   Sparkles, 
-  FileCheck2
+  User, 
+  Stethoscope, 
+  LogOut, 
+  Copy, 
+  Check, 
+  ExternalLink,
+  Shield,
+  KeyRound
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
+import { ConnectedDoctorsCard } from '../components/patient/ConnectedDoctorsCard';
 
 export const SettingsPage: React.FC = () => {
-  const { aiMode, loadDemoPatient } = usePatient();
-  const [resetSuccess, setResetSuccess] = useState(false);
+  const { userProfile, role, logout } = useAuth();
+  const { aiMode, connections } = usePatient();
+  const [copied, setCopied] = useState(false);
 
-  const handleResetData = () => {
-    loadDemoPatient();
-    setResetSuccess(true);
-    confetti({
-      particleCount: 40,
-      spread: 60,
-      origin: { y: 0.7 }
-    });
-    setTimeout(() => setResetSuccess(false), 3000);
+  const doctorCode = userProfile?.doctorCode || (userProfile?.uid ? `MED-${userProfile.uid.substring(0, 6).toUpperCase()}` : 'Generating...');
+
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(doctorCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300 max-w-4xl">
       {/* Header */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200/90 shadow-soft">
+      <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200/90 shadow-xs">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
             <Settings className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Settings, Privacy & Clinical Guardrails</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Account Settings & Security</h1>
             <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-              Configuration, local persistence governance, and responsible AI system architecture.
+              Manage your clinical profile, provider connections, and security preferences.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Privacy Notice */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200/90 shadow-soft space-y-4">
+      {/* User Profile Section */}
+      <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-5">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600">
+              <User className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Clinical Profile</h2>
+              <p className="text-xs text-slate-500">Your authenticated account credentials</p>
+            </div>
+          </div>
+          <span className={`text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider ${
+            role === 'doctor' 
+              ? 'bg-sky-100 text-sky-800 border border-sky-200' 
+              : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+          }`}>
+            {role === 'doctor' ? 'Clinician Account' : 'Patient Account'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs sm:text-sm">
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/70 space-y-1">
+            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">Full Name</span>
+            <span className="font-bold text-slate-900">{userProfile?.displayName || 'Clinical User'}</span>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/70 space-y-1">
+            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">Email Address</span>
+            <span className="font-bold text-slate-900">{userProfile?.email || 'Authenticated User'}</span>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/70 space-y-1">
+            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">Account ID (UID)</span>
+            <span className="font-mono text-xs text-slate-700 select-all">{userProfile?.uid || 'Unknown'}</span>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/70 space-y-1">
+            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">Authentication Provider</span>
+            <span className="font-bold text-slate-900">Google OAuth (Firebase Auth)</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Role-Specific Connection Manager */}
+      {role === 'doctor' ? (
+        <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-4">
+          <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+            <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600">
+              <Stethoscope className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Doctor Connection Code</h2>
+              <p className="text-xs text-slate-500">Provide this code to your patients for record access</p>
+            </div>
+          </div>
+
+          <div className="p-5 rounded-2xl bg-slate-900 text-white flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+              <span className="text-xs text-slate-400 block font-medium">Your Clinician Code</span>
+              <span className="font-mono text-2xl font-black text-sky-400 tracking-wider block mt-0.5">
+                {doctorCode}
+              </span>
+              <span className="text-xs text-slate-400 mt-1 block">
+                Active connections: <strong className="text-white">{connections.length} patients</strong>
+              </span>
+            </div>
+            <button
+              onClick={handleCopyCode}
+              className="px-4 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow-md transition-colors flex items-center gap-2 cursor-pointer shrink-0"
+            >
+              {copied ? <Check className="w-4 h-4 text-slate-950" /> : <Copy className="w-4 h-4" />}
+              <span>{copied ? 'Code Copied!' : 'Copy Doctor Code'}</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <ConnectedDoctorsCard />
+      )}
+
+      {/* Privacy, Authorization & Security Architecture */}
+      <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-4">
         <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
           <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
             <Lock className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-slate-900">Browser-Side Privacy Architecture</h2>
-            <p className="text-xs text-slate-500">100% Client-Side Local Storage for Demo Security</p>
+            <h2 className="text-base font-bold text-slate-900">Security & Privacy Architecture</h2>
+            <p className="text-xs text-slate-500">Authenticated access with role-based authorization</p>
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-700 leading-relaxed space-y-2">
-          <p className="font-semibold text-slate-900">
-            "For this demo, information is stored locally in the browser. Do not upload real patient information."
-          </p>
-          <p className="text-xs text-slate-500">
-            Medical records, laboratory values, and patient demographics are stored strictly inside your web browser's HTML5 LocalStorage sandbox. No records are transmitted to third-party databases, cloud buckets, or external ad trackers.
-          </p>
+        <div className="space-y-3 text-xs sm:text-sm text-slate-600 leading-relaxed">
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+            <p className="font-semibold text-slate-900">
+              Authenticated access with role-based authorization and encrypted network transmission.
+            </p>
+            <p className="text-xs text-slate-500">
+              Your clinical documents and biomarker extractions are stored securely in Google Cloud Firestore under your authenticated user ID. Data is synchronized across devices only after secure authentication.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-1">
+              <span className="font-bold text-xs text-slate-900 block">Strict Data Isolation</span>
+              <p className="text-[11px] text-slate-500">Patients can only access their own records. Clinicians can only inspect records for patients with an approved connection.</p>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-1">
+              <span className="font-bold text-xs text-slate-900 block">Source-Bound Calibration</span>
+              <p className="text-[11px] text-slate-500">Reference intervals are strictly bound to the source report's printed ranges. MedLens never invents normal limits.</p>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-1">
+              <span className="font-bold text-xs text-slate-900 block">Non-Diagnostic Mandate</span>
+              <p className="text-[11px] text-slate-500">MedLens assists comprehension and clinical organization. It does not replace the judgment of licensed healthcare providers.</p>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-1">
+              <span className="font-bold text-xs text-slate-900 block">Clinician Audit Lineage</span>
+              <p className="text-[11px] text-slate-500">All reviews, adjustments, and reconciliations create permanent, timestamped audit records with reviewer identification.</p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* AI Mode & Model Status */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200/90 shadow-soft space-y-4">
+      {/* AI Intelligence Engine Status */}
+      <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-4">
         <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
           <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600">
             <Sparkles className="w-5 h-5" />
           </div>
           <div>
             <h2 className="text-base font-bold text-slate-900">Active AI Intelligence Engine</h2>
-            <p className="text-xs text-slate-500">Free-tier compatible dual-mode AI abstraction</p>
+            <p className="text-xs text-slate-500">Production generative clinical assistant</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className={`p-4 rounded-2xl border ${
-            aiMode === 'Gemini' 
-              ? 'bg-sky-50/60 border-sky-300 ring-2 ring-sky-300' 
-              : 'bg-slate-50 border-slate-200'
-          }`}>
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-sm text-slate-900">Gemini 3.8 Flash Generative AI</span>
-              {aiMode === 'Gemini' && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                  Active
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-slate-500 mt-1">
-              Powered securely server-side via <code className="text-sky-700 font-mono">GEMINI_API_KEY</code> in Vercel Project Settings (never exposed to browser clients).
-            </p>
+        <div className="p-4 rounded-2xl bg-sky-50/70 border border-sky-200 space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-sm text-sky-950">Gemini 3.8 Flash</span>
+            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+              Active Server-Side
+            </span>
           </div>
-
-          <div className={`p-4 rounded-2xl border ${
-            aiMode === 'Demo' 
-              ? 'bg-sky-50/60 border-sky-300 ring-2 ring-sky-300' 
-              : 'bg-slate-50 border-slate-200'
-          }`}>
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-sm text-slate-900">Local Deterministic Engine</span>
-              {aiMode === 'Demo' && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-800">
-                  Active (Offline Safe)
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-slate-500 mt-1">
-              Zero-cost deterministic analyzer producing structured observations strictly from source reference intervals.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Safety Disclaimers */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200/90 shadow-soft space-y-4">
-        <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
-          <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600">
-            <ShieldCheck className="w-5 h-5" />
-          </div>
-          <div>
-            <h2 className="text-base font-bold text-slate-900">Medical Disclaimers & Safety Mandate</h2>
-            <p className="text-xs text-slate-500">Non-negotiable ethical clinical safety principles</p>
-          </div>
-        </div>
-
-        <div className="space-y-2 text-xs text-slate-600 leading-relaxed">
-          <p className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-            "MedLens helps organize and explain medical information. It is not a medical diagnosis or treatment system. Information may be incomplete or inaccurate. Always verify important information with the original source and consult a qualified healthcare professional for medical decisions."
+          <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+            Clinical queries are processed securely via the server-side <code className="text-sky-800 font-mono text-xs">/api/chat</code> endpoint. Your API key remains strictly server-side and is never transmitted to the client browser.
           </p>
-          <ul className="list-disc pl-5 space-y-1 text-slate-500">
-            <li>Never provides autonomous medical diagnoses (e.g. "You have diabetes").</li>
-            <li>Never prescribes medications or alters recorded dosages.</li>
-            <li>Never synthesizes missing reference ranges from external assumptions.</li>
-            <li>Always exposes verbatim source provenance for human verification.</li>
-          </ul>
         </div>
       </div>
 
-      {/* Data Management & Demo Reset */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200/90 shadow-soft space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <div>
-            <h2 className="text-base font-bold text-slate-900">Reset Demo State</h2>
-            <p className="text-xs text-slate-500">Restore the initial fictional Alex Carter hackathon dataset (does not affect authenticated user accounts)</p>
-          </div>
-
-          <button
-            onClick={handleResetData}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer"
-          >
-            <RotateCcw className="w-4 h-4" />
-            <span>Reset Demo Data</span>
-          </button>
+      {/* Sign Out Action */}
+      <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200/90 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div>
+          <h2 className="text-base font-bold text-slate-900">Sign Out of MedLens</h2>
+          <p className="text-xs text-slate-500">Securely conclude your active session on this device</p>
         </div>
 
-        {resetSuccess && (
-          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
-            <FileCheck2 className="w-4 h-4" />
-            <span>Successfully reloaded pristine fictional dataset!</span>
-          </div>
-        )}
+        <button
+          onClick={() => logout()}
+          className="px-5 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs shadow-xs transition-colors flex items-center gap-2 cursor-pointer shrink-0"
+        >
+          <LogOut className="w-4 h-4" />
+          <span>Sign Out</span>
+        </button>
       </div>
     </div>
   );

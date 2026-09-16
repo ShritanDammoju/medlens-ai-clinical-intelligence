@@ -22,7 +22,7 @@ import { sendChatMessageToAI, buildStructuredPatientContext } from '../../servic
 
 export const MedLensChatbot: React.FC = () => {
   const { currentPatient, state, openSourceInspector } = usePatient();
-  const { isDemoMode, role } = useAuth();
+  const { role } = useAuth();
   
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -102,7 +102,7 @@ export const MedLensChatbot: React.FC = () => {
         query,
         history,
         patientContext,
-        Boolean(isDemoMode),
+        false,
         role
       );
 
@@ -165,7 +165,6 @@ export const MedLensChatbot: React.FC = () => {
                 </div>
                 <p className="text-[11px] text-slate-300">
                   {currentPatient ? `Active: ${currentPatient.name}` : 'Clinical Intelligence'}
-                  {isDemoMode && ' (Demo Mode)'}
                 </p>
               </div>
             </div>
@@ -187,19 +186,11 @@ export const MedLensChatbot: React.FC = () => {
             </div>
           </div>
 
-          {/* Safety & Demo Notification Ribbon */}
-          <div className={`px-3.5 py-2 text-[11px] flex items-center justify-between gap-2 border-b ${
-            isDemoMode 
-              ? 'bg-amber-50 text-amber-900 border-amber-200' 
-              : 'bg-sky-50 text-sky-900 border-sky-100'
-          }`}>
+          {/* Safety Notification Ribbon */}
+          <div className="px-3.5 py-2 text-[11px] flex items-center justify-between gap-2 border-b bg-sky-50 text-sky-900 border-sky-100">
             <div className="flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-              <span>
-                {isDemoMode 
-                  ? 'Demo Mode Active: Answering using Alex Carter sample dataset.' 
-                  : 'Grounded strictly in your authorized medical records. Non-diagnostic.'}
-              </span>
+              <span>Grounded strictly in your authorized medical records. Non-diagnostic.</span>
             </div>
           </div>
 

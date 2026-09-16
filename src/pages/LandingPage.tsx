@@ -5,30 +5,24 @@ import {
   Sparkles, 
   ShieldCheck, 
   Upload, 
-  CheckCheck, 
-  GitCompare, 
   FileText, 
   Lock, 
   Brain, 
-  HeartHandshake,
-  Database,
-  Search,
-  CheckCircle2,
-  Users,
-  ChevronDown,
-  Stethoscope,
-  BookOpen,
-  Scale,
-  FileCheck,
-  Zap,
-  HelpCircle,
-  ExternalLink
+  CheckCircle2, 
+  Users, 
+  ChevronDown, 
+  Stethoscope, 
+  LineChart, 
+  Clock, 
+  Layers, 
+  Check, 
+  ExternalLink 
 } from 'lucide-react';
 import { useAuth } from '../firebase/AuthContext';
 
 interface Props {
-  onEnterApp: () => void;
-  onLaunchDemo: () => void;
+  onEnterApp?: () => void;
+  onLaunchDemo?: () => void;
 }
 
 interface FAQItem {
@@ -39,39 +33,39 @@ interface FAQItem {
 const FAQ_DATA: FAQItem[] = [
   {
     question: "What is MedLens and what problem does it solve?",
-    answer: "MedLens is an AI-powered clinical information intelligence platform that solves the widespread problem of medical information fragmentation. When patients visit different diagnostic laboratories and clinics, their test results, dosage histories, and physician observations end up scattered across paper reports, disparate patient portals, and unstandardized PDFs. MedLens brings these disconnected documents together into a unified, chronological, and reference-range-verified patient profile."
+    answer: "MedLens is a clinical information intelligence platform that unifies scattered diagnostic reports, laboratory test records, and patient health histories into a single, structured, chronological timeline. It solves the challenge of fragmented records across different clinics, hospitals, and diagnostic labs."
   },
   {
-    question: "How does MedLens handle laboratory reference intervals?",
-    answer: "Unlike generic consumer chatbots that guess or hallucinate standard 'normal ranges', MedLens strictly binds every biomarker evaluation to the explicit reference intervals printed on that specific laboratory report. Because different laboratories utilize varying analytical instruments, reagents, and demographic calibration curves, MedLens never synthesizes unverified reference ranges. If a laboratory omits a reference interval, MedLens transparently flags the biomarker status as 'Cannot determine'."
+    question: "How does MedLens handle laboratory reference ranges?",
+    answer: "Unlike generic consumer chatbots that synthesize or hallucinate standard 'normal ranges', MedLens strictly evaluates biomarker values against the specific reference intervals printed on that individual laboratory report. Because different diagnostic instruments and reagents use distinct calibration standards, MedLens never invents reference ranges. If a laboratory report omits a reference interval, MedLens flags the biomarker status as 'Cannot determine'."
   },
   {
-    question: "How does the patient-doctor connection system work?",
-    answer: "Every registered clinician receives a unique, verified Doctor Code (e.g. MED-782194). Patients simply enter this code within their MedLens portal to dispatch a connection request. Once approved by the physician on their dedicated Doctor Dashboard, the clinician gains authorized access to inspect the patient's structured record, review lab trajectories, and perform clinical verification. Patients maintain full sovereign ownership and can revoke clinician access at any time with one click."
+    question: "How does the patient–doctor connection work?",
+    answer: "Every registered physician receives a unique clinician code (e.g. MED-XXXXXX). A patient can enter this code in their account to request a secure connection. Once the doctor approves the request, they can view the patient's longitudinal lab trajectories and health timeline with source-level provenance. Patients maintain full ownership and can revoke connection access at any time."
   },
   {
-    question: "Does MedLens provide automated medical diagnoses?",
-    answer: "No. MedLens is intentionally designed as an assistive, non-diagnostic clinical intelligence system. It synthesizes, organizes, extracts, and highlights observations to support clinical decision-making, but it never replaces the professional medical judgment of a licensed healthcare provider. All diagnostic evaluations and therapy plans require qualified clinician review."
+    question: "Does MedLens provide automated medical diagnoses or prescribe medications?",
+    answer: "No. MedLens is an assistive clinical information platform, not a diagnostic medical device. It organizes, extracts, and summarizes medical documentation to assist clinical comprehension and doctor-patient consultations. All therapeutic decisions, diagnoses, and medical judgments remain strictly with licensed healthcare practitioners."
   },
   {
-    question: "How does data provenance work in MedLens?",
-    answer: "Every single discrete clinical value in MedLens—whether a hemoglobin measurement, an active prescription, or an allergy—is stamped with an immutable data lineage badge: 'Patient Provided', 'Extracted from Report', 'AI Inferred', or 'Verified'. Users and clinicians can click on any parameter to view the original source document, page number, verbatim text snippet, and reviewer timestamp."
+    question: "What is data provenance in MedLens?",
+    answer: "Every clinical parameter extracted by MedLens—such as a lab measurement or medication entry—retains an explicit source lineage badge. You can trace any data point back to its originating document, page number, and original verbatim text snippet."
   },
   {
-    question: "What file formats does MedLens support for report ingestion?",
-    answer: "MedLens accepts diagnostic reports in PDF format, scanned lab result images (PNG, JPG, JPEG), and direct raw clinical text or electronic health record (EHR) text pastes. The multimodal ingestion engine tokenizes and parses both structured tabular outputs and unstructured clinical narratives."
+    question: "What file formats does MedLens support?",
+    answer: "MedLens supports clinical PDF reports, scanned document images (PNG, JPG, WEBP), and direct clinical text pastes. Uploaded documents are parsed into standardized clinical records."
   },
   {
-    question: "How does MedLens ensure patient privacy and security?",
-    answer: "MedLens is designed with privacy-by-default architecture aligned with the HIPAA Security and Privacy Rules (45 CFR Part 160 and Part 164). Data is protected by strict Cloud Firestore security rules, client-side session options, and granular role authorization ensuring that only the patient and explicitly authorized clinicians can access medical data."
+    question: "How is my medical data protected?",
+    answer: "MedLens enforces authenticated access with role-based authorization and encrypted network transmission. Strict security rules ensure that patients only access their own medical documents, and doctors only access records for patients with an approved connection."
   },
   {
-    question: "Can clinicians review and override AI-extracted values?",
-    answer: "Yes. MedLens incorporates a dedicated Verification Center where physicians can review extracted parameters side-by-side with original report text. Clinicians can adjust values, re-evaluate reference limits, approve or reject parameters, and resolve cross-record conflicts. Every modification creates a permanent audit log entry documenting the reviewer's identity and timestamp."
+    question: "Can physicians verify and override extracted clinical values?",
+    answer: "Yes. MedLens includes a dedicated Verification Center where authorized physicians review extracted data against the source document. Clinicians can adjust values, verify entries, reject discrepancies, and log timestamped modifications in a permanent audit log."
   }
 ];
 
-export const LandingPage: React.FC<Props> = ({ onEnterApp, onLaunchDemo }) => {
+export const LandingPage: React.FC<Props> = () => {
   const { openAuthModal } = useAuth();
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
@@ -79,13 +73,20 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onLaunchDemo }) => {
     setOpenFaqIndex(openFaqIndex === idx ? null : idx);
   };
 
+  const scrollToSection = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 selection:bg-sky-500 selection:text-white">
-      {/* Top Navigation Bar */}
-      <header className="border-b border-slate-800/80 bg-slate-950/70 backdrop-blur sticky top-0 z-40">
+    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-sky-500 selection:text-white">
+      {/* Navigation Header */}
+      <header className="border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center text-white shadow-lg shadow-sky-500/30">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center text-white shadow-lg shadow-sky-500/25">
               <Activity className="w-6 h-6" />
             </div>
             <div>
@@ -94,62 +95,67 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onLaunchDemo }) => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4">
-            <button
-              onClick={onLaunchDemo}
-              className="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-            >
-              Try Demo Mode
+          {/* Desktop Navigation Links */}
+          <nav className="hidden md:flex items-center gap-6 text-xs font-semibold text-slate-300">
+            <button onClick={() => scrollToSection('how-it-works')} className="hover:text-white transition-colors cursor-pointer">
+              How It Works
             </button>
+            <button onClick={() => scrollToSection('for-patients')} className="hover:text-white transition-colors cursor-pointer">
+              For Patients
+            </button>
+            <button onClick={() => scrollToSection('for-doctors')} className="hover:text-white transition-colors cursor-pointer">
+              For Doctors
+            </button>
+            <button onClick={() => scrollToSection('security')} className="hover:text-white transition-colors cursor-pointer">
+              Security & Privacy
+            </button>
+            <button onClick={() => scrollToSection('faq')} className="hover:text-white transition-colors cursor-pointer">
+              FAQ
+            </button>
+          </nav>
+
+          {/* Account CTAs */}
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => openAuthModal('doctor')}
-              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold text-sky-400 hover:bg-sky-950/50 border border-sky-800/60 transition-colors cursor-pointer"
+              onClick={() => openAuthModal()}
+              className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
             >
-              <Stethoscope className="w-3.5 h-3.5" />
-              <span>Doctor Portal</span>
+              Sign In
             </button>
             <button
               onClick={() => openAuthModal('patient')}
-              className="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs sm:text-sm font-bold shadow-lg shadow-sky-500/20 transition-all cursor-pointer flex items-center gap-2"
+              className="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs sm:text-sm font-bold shadow-lg shadow-sky-500/20 transition-all hover:scale-[1.02] cursor-pointer flex items-center gap-2"
             >
-              <span>Sign In / Launch</span>
+              <span>Get Started</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         </div>
       </header>
 
-      {/* Hero Section with Single <h1> for AEO/SEO */}
+      {/* Hero Section */}
       <section className="relative overflow-hidden pt-16 pb-20 sm:pt-24 sm:pb-28">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-20%,rgba(14,165,233,0.18),rgba(255,255,255,0))]" />
         
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10 space-y-6">
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-sky-500/10 border border-sky-400/20 text-sky-300 text-xs font-semibold tracking-wide uppercase">
             <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-            <span>Reference-Range-Aware Healthcare Intelligence</span>
+            <span>Clinical Information Intelligence Platform</span>
           </div>
 
-          {/* Single Main H1 Tag */}
           <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black text-white tracking-tight leading-[1.1]">
-            AI-Powered Clinical Information Intelligence
+            Understand your medical records with clinical clarity.
           </h1>
 
           <p className="text-base sm:text-xl text-slate-300 max-w-3xl mx-auto font-normal leading-relaxed">
-            Transform fragmented diagnostic reports, clinical summaries, and patient-reported symptoms into a structured, chronologically unified health profile with strict source-explicit reference range awareness and complete human-in-the-loop verification.
+            MedLens unifies fragmented diagnostic reports, lab trends, and health timelines into a structured, clinician-verifiable medical record — powered by source-aware AI.
           </p>
 
-          {/* Trust Value Badges */}
-          <div className="flex flex-wrap items-center justify-center gap-2 pt-2 text-xs font-semibold text-slate-300">
-            <span className="px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700/60">For Patients & Clinicians</span>
-            <span className="px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-800/60 text-emerald-300">AI-Assisted • Not AI-Diagnosed</span>
-            <span className="px-3 py-1 rounded-full bg-sky-950/60 border border-sky-800/60 text-sky-300">Human Verification Protocol</span>
-            <span className="px-3 py-1 rounded-full bg-amber-950/60 border border-amber-800/60 text-amber-300">Source-Aware Provenance</span>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-3">
+          {/* Action CTAs */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-4">
             <button
               onClick={() => openAuthModal('patient')}
-              className="w-full sm:w-auto px-7 py-3.5 rounded-2xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold text-sm sm:text-base shadow-xl shadow-sky-500/25 transition-all hover:scale-[1.02] cursor-pointer flex items-center justify-center gap-2"
+              className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold text-sm sm:text-base shadow-xl shadow-sky-500/25 transition-all hover:scale-[1.02] cursor-pointer flex items-center justify-center gap-2"
             >
               <Users className="w-5 h-5 text-slate-950" />
               <span>Get Started as Patient</span>
@@ -158,229 +164,396 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onLaunchDemo }) => {
 
             <button
               onClick={() => openAuthModal('doctor')}
-              className="w-full sm:w-auto px-7 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-sky-400 font-extrabold text-sm sm:text-base border border-sky-600/40 shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
+              className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-sky-400 font-extrabold text-sm sm:text-base border border-sky-500/30 shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2"
             >
               <Stethoscope className="w-5 h-5 text-sky-400" />
               <span>Doctor Portal</span>
             </button>
-
-            <button
-              onClick={onLaunchDemo}
-              className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white font-bold text-sm sm:text-base border border-slate-700/80 shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
-            >
-              <Sparkles className="w-4 h-4 text-amber-400" />
-              <span>Explore Demo</span>
-            </button>
           </div>
 
-          {/* Clinical Architecture Highlights */}
-          <div className="pt-10 grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-4xl mx-auto text-left">
-            <div className="p-4 rounded-2xl bg-slate-800/50 border border-slate-700/60 space-y-1">
-              <span className="text-[10px] font-mono font-bold text-sky-400 uppercase">Non-Hallucinatory</span>
-              <div className="text-sm font-bold text-white">Source-Bound Ranges</div>
-              <p className="text-[11px] text-slate-400">Strictly bounds evaluations to the lab's printed limits.</p>
+          {/* Trust Value Points */}
+          <div className="pt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-xs sm:text-sm font-medium text-slate-300">
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-400" />
+              <span>Structured clinical information</span>
             </div>
-
-            <div className="p-4 rounded-2xl bg-slate-800/50 border border-slate-700/60 space-y-1">
-              <span className="text-[10px] font-mono font-bold text-teal-400 uppercase">Full Lineage</span>
-              <div className="text-sm font-bold text-white">Clinical Provenance</div>
-              <p className="text-[11px] text-slate-400">Every biomarker links to original verbatim source text.</p>
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-400" />
+              <span>Source-aware lab records</span>
             </div>
-
-            <div className="p-4 rounded-2xl bg-slate-800/50 border border-slate-700/60 space-y-1">
-              <span className="text-[10px] font-mono font-bold text-amber-400 uppercase">Physician Link</span>
-              <div className="text-sm font-bold text-white">Doctor Code System</div>
-              <p className="text-[11px] text-slate-400">Share MED-XXXXXX code for secure clinician review.</p>
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-400" />
+              <span>Human-in-the-loop review</span>
             </div>
-
-            <div className="p-4 rounded-2xl bg-slate-800/50 border border-slate-700/60 space-y-1">
-              <span className="text-[10px] font-mono font-bold text-emerald-400 uppercase">Audit Trail</span>
-              <div className="text-sm font-bold text-white">Human Verification</div>
-              <p className="text-[11px] text-slate-400">Clinician verification center with timestamped changes.</p>
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-400" />
+              <span>Secure, authenticated access</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-400" />
+              <span>Non-diagnostic AI assistance</span>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Comprehensive Medical Narrative Section (300+ words) */}
-      <section className="py-16 border-y border-slate-800 bg-slate-950/60">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800 text-sky-400 text-xs font-bold uppercase tracking-wider">
-            <BookOpen className="w-3.5 h-3.5" />
-            <span>The Clinical Problem & Innovation</span>
-          </div>
-
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-            Solving the Crisis of Fragmented Medical Information
-          </h2>
-
-          <div className="prose prose-invert max-w-none text-slate-300 text-sm sm:text-base leading-relaxed space-y-4">
-            <p>
-              In contemporary healthcare delivery, medical records are inherently decentralized. A single patient frequently undergoes routine blood work at an independent diagnostic laboratory, receives specialist consultations at an outpatient center, undergoes imaging at a regional hospital, and manages self-reported symptom journals at home. These vital health documents are stored in disconnected patient portals or delivered as static paper printouts. When patients consult with a new physician, crucial laboratory trajectories, prior adverse drug reactions, and historical baseline values are routinely inaccessible or lost.
-            </p>
-            <p>
-              This information scatter introduces substantial diagnostic friction, leads to redundant laboratory testing, and exacerbates medication reconciliation errors. Furthermore, while consumer artificial intelligence tools attempt to summarize medical documents, generic large language models frequently hallucinate arbitrary 'normal ranges' that disregard critical demographic, reagent, and analytical instrument differences established by the originating testing laboratory.
-            </p>
-            <p>
-              MedLens establishes an entirely new paradigm: <strong>reference-range-aware clinical information intelligence</strong>. By pairing a 10-stage deterministic parsing engine with human-in-the-loop clinician oversight, MedLens extracts numerical test results, normalizes diverse clinical nomenclatures, validates parameters strictly against the originating document's printed reference intervals, and establishes bidirectional access between patients and their physicians using sovereign Doctor Codes. Every extracted insight retains verbatim provenance back to the source file, empowering patients and doctors with verified transparency.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* 10-Stage Clinical Processing Pipeline */}
-      <section className="py-20 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-        <div className="text-center space-y-3">
-          <span className="text-xs font-mono font-bold text-sky-400 uppercase tracking-widest">End-to-End Clinical Intelligence Architecture</span>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-            The 10-Stage Clinical Intelligence Pipeline
-          </h2>
-          <p className="text-slate-300 text-sm sm:text-base max-w-3xl mx-auto font-medium">
-            "MedLens doesn't just chat with medical documents. It transforms fragmented reports into a structured, traceable, and reviewable clinical record with validation, provenance, conflict detection, and clinician verification."
-          </p>
-        </div>
-
-        {/* 10-Step Interactive Visual Flowchart */}
-        <div className="p-6 rounded-3xl bg-slate-950/80 border border-slate-800 shadow-2xl space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-800 text-xs font-mono text-slate-400">
-            <span>PIPELINE SEQUENCE: INPUT → VERIFICATION</span>
-            <span className="text-emerald-400 font-bold">100% TRACEABLE LINEAGE</span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-center text-xs">
-            {[
-              { num: '01', title: 'INPUT', sub: 'PDF / Image / Text', color: 'border-sky-500/40 text-sky-400 bg-sky-950/30' },
-              { num: '02', title: 'EXTRACTION', sub: 'Tokenization & OCR', color: 'border-sky-500/40 text-sky-400 bg-sky-950/30' },
-              { num: '03', title: 'VALIDATION', sub: 'Completeness check', color: 'border-teal-500/40 text-teal-400 bg-teal-950/30' },
-              { num: '04', title: 'NORMALIZATION', sub: 'Clinical aliases', color: 'border-teal-500/40 text-teal-400 bg-teal-950/30' },
-              { num: '05', title: 'REF-BOUND', sub: 'Source intervals only', color: 'border-amber-500/40 text-amber-400 bg-amber-950/30' },
-              { num: '06', title: 'CONFLICTS', sub: 'Cross-record scan', color: 'border-rose-500/40 text-rose-400 bg-rose-950/30' },
-              { num: '07', title: 'GAPS & MISSING', sub: 'Omission alerts', color: 'border-amber-500/40 text-amber-400 bg-amber-950/30' },
-              { num: '08', title: 'PROVENANCE', sub: 'Immutable lineage', color: 'border-indigo-500/40 text-indigo-400 bg-indigo-950/30' },
-              { num: '09', title: 'AI SUMMARY', sub: 'Gemini 3.8 Flash', color: 'border-purple-500/40 text-purple-400 bg-purple-950/30' },
-              { num: '10', title: 'HUMAN REVIEW', sub: 'Clinician verification', color: 'border-emerald-500/40 text-emerald-400 bg-emerald-950/30' }
-            ].map((step, idx) => (
-              <div key={idx} className={`p-3 rounded-2xl border ${step.color} flex flex-col justify-between space-y-1`}>
-                <span className="text-[10px] font-mono opacity-75">{step.num}</span>
-                <span className="font-extrabold text-[11px] tracking-wide">{step.title}</span>
-                <span className="text-[10px] opacity-80">{step.sub}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[
-            {
-              step: '01',
-              title: 'Multimodal Document Ingestion',
-              desc: 'Accepts diverse medical inputs including clinical PDFs, laboratory scans (PNG, JPG), raw EHR text, and structured patient intake forms.',
-              badge: 'Ingestion'
-            },
-            {
-              step: '02',
-              title: 'Terminology Normalization',
-              desc: 'Standardizes disparate clinical aliases (e.g., Hb, HGB, Haemoglobin to Hemoglobin) while permanently recording the source verbatim token.',
-              badge: 'Normalization'
-            },
-            {
-              step: '03',
-              title: 'Source-Bound Range Extraction',
-              desc: 'Strictly bounds normal/abnormal evaluations to the reference interval printed on that specific laboratory report, eliminating AI range hallucinations.',
-              badge: 'Safety Rule'
-            },
-            {
-              step: '04',
-              title: 'Cross-Record Conflict Scanning',
-              desc: 'Scans medication therapies, allergies, and diagnostic timelines across historical reports to identify dosage discrepancies or contraindications.',
-              badge: 'Reconciliation'
-            },
-            {
-              step: '05',
-              title: 'Context-Aware Clarification',
-              desc: 'Synthesizes tailored clarification questions for the patient and doctor to discuss during consultations based on detected data gaps.',
-              badge: 'Intelligence'
-            },
-            {
-              step: '06',
-              title: 'Human-in-the-Loop Clinician Review',
-              desc: 'Provides a dedicated Verification Center where physicians review side-by-side evidence, override parameters, and log immutable audit entries.',
-              badge: 'Verification'
-            }
-          ].map((item, idx) => (
-            <div key={idx} className="p-6 rounded-3xl bg-slate-800/40 border border-slate-700/60 hover:border-sky-500/40 transition-all space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-mono font-black text-sky-400 bg-sky-500/10 px-2.5 py-1 rounded-lg border border-sky-400/20">
-                  STAGE {item.step}
-                </span>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  {item.badge}
-                </span>
-              </div>
-              <h3 className="text-lg font-bold text-white">{item.title}</h3>
-              <p className="text-xs text-slate-300 leading-relaxed">{item.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Patient–Doctor Connection Section */}
-      <section className="py-16 bg-gradient-to-b from-slate-950/60 to-slate-900 border-y border-slate-800">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center gap-10">
-          <div className="flex-1 space-y-4">
-            <span className="text-xs font-mono font-bold text-emerald-400 uppercase tracking-widest">Bidirectional Access</span>
+      {/* How MedLens Works (6-Stage Workflow) */}
+      <section id="how-it-works" className="py-20 border-t border-slate-800/80 bg-slate-900/40">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+          <div className="text-center space-y-3">
+            <span className="text-xs font-mono font-bold text-sky-400 uppercase tracking-widest">System Architecture</span>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-              Seamless Patient–Clinician Connectivity
+              How MedLens Works
             </h2>
-            <p className="text-sm text-slate-300 leading-relaxed">
-              MedLens bridges the gap between patient home monitoring and physician consultation. Doctors generate a unique connection code (e.g. <span className="font-mono text-sky-400">MED-782194</span>) that patients submit in their portal. Once accepted, clinicians can review comprehensive laboratory trends, inspect conflicting therapies, and verify values.
+            <p className="text-slate-300 text-sm sm:text-base max-w-2xl mx-auto">
+              A 6-step clinical intelligence workflow turning fragmented medical documents into validated, actionable health records.
             </p>
-            <div className="flex items-center gap-3 pt-2">
-              <div className="flex items-center gap-2 text-xs text-slate-300 font-semibold">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Instant Revocation</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[
+              {
+                step: '01',
+                title: 'Collect',
+                subtitle: 'Multimodal Ingestion',
+                desc: 'Upload laboratory reports, diagnostic summaries, imaging notes, and clinical documentation as PDF files, scan images, or text.',
+                icon: Upload,
+                color: 'text-sky-400 bg-sky-500/10 border-sky-500/20'
+              },
+              {
+                step: '02',
+                title: 'Extract',
+                subtitle: 'Clinical Extraction',
+                desc: 'Intelligent multimodal parsing accurately extracts numerical biomarkers, active medications, diagnoses, and physician observations.',
+                icon: FileText,
+                color: 'text-teal-400 bg-teal-500/10 border-teal-500/20'
+              },
+              {
+                step: '03',
+                title: 'Validate',
+                subtitle: 'Source-Bound Calibration',
+                desc: 'Every biomarker is evaluated strictly against the reference intervals printed on that report. No synthesized or hallucinated ranges.',
+                icon: ShieldCheck,
+                color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+              },
+              {
+                step: '04',
+                title: 'Organize',
+                subtitle: 'Longitudinal Trajectory',
+                desc: 'Synthesizes observations into a unified chronological health timeline with longitudinal trends and cross-report conflict detection.',
+                icon: LineChart,
+                color: 'text-purple-400 bg-purple-500/10 border-purple-500/20'
+              },
+              {
+                step: '05',
+                title: 'Review',
+                subtitle: 'Clinician Verification Center',
+                desc: 'Patients explore clear summaries while connected physicians verify values, resolve therapeutic conflicts, and record immutable audit logs.',
+                icon: Stethoscope,
+                color: 'text-amber-400 bg-amber-500/10 border-amber-500/20'
+              },
+              {
+                step: '06',
+                title: 'Understand',
+                subtitle: 'Grounded AI Assistant',
+                desc: 'Interactive generative AI assistant answers patient and clinician questions, grounded strictly in the verified medical record.',
+                icon: Brain,
+                color: 'text-rose-400 bg-rose-500/10 border-rose-500/20'
+              }
+            ].map((item, idx) => {
+              const Icon = item.icon;
+              return (
+                <div key={idx} className="p-6 rounded-3xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition-all space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono font-black text-slate-400">
+                      STAGE {item.step}
+                    </span>
+                    <div className={`p-2 rounded-xl border ${item.color}`}>
+                      <Icon className="w-5 h-5" />
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">{item.title}</h3>
+                    <p className="text-xs font-semibold text-sky-400">{item.subtitle}</p>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">{item.desc}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* For Patients Section */}
+      <section id="for-patients" className="py-20 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          <div className="space-y-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/10 border border-sky-400/20 text-sky-400 text-xs font-bold uppercase tracking-wider">
+              <Users className="w-3.5 h-3.5" />
+              <span>For Patients</span>
+            </div>
+
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight">
+              A comprehensive, easy-to-understand view of your clinical health.
+            </h2>
+
+            <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
+              Never lose track of important blood tests, past prescriptions, or specialist notes. MedLens organizes your health documents into an intuitive record that helps you prepare for appointments and understand your body.
+            </p>
+
+            <div className="space-y-3 pt-2 text-xs sm:text-sm text-slate-300">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                <span><strong>Clear Health History:</strong> Unified timeline of diagnostic results, prescriptions, and health events.</span>
               </div>
-              <div className="flex items-center gap-2 text-xs text-slate-300 font-semibold">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Zero-Leakage Privacy</span>
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                <span><strong>Lab Trends Over Time:</strong> Track biomarker trajectories with source-calibrated reference intervals.</span>
               </div>
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                <span><strong>AI-Assisted Explanations:</strong> Plain-language breakdowns of complex medical terminology grounded in your reports.</span>
+              </div>
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                <span><strong>Appointment Preparation:</strong> Formulate informed questions to discuss with your doctor.</span>
+              </div>
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                <span><strong>Doctor Sharing:</strong> Easily connect with your healthcare provider using their secure clinician code.</span>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                onClick={() => openAuthModal('patient')}
+                className="px-6 py-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-sm shadow-lg shadow-sky-500/20 transition-all cursor-pointer inline-flex items-center gap-2"
+              >
+                <span>Create Patient Account</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
-          <div className="flex-1 bg-slate-800/70 p-6 rounded-3xl border border-slate-700 shadow-xl space-y-4 max-w-md w-full">
-            <div className="flex items-center justify-between border-b border-slate-700 pb-3">
-              <div className="flex items-center gap-2">
-                <Stethoscope className="w-5 h-5 text-sky-400" />
-                <span className="font-bold text-sm text-white">Doctor Code Connection</span>
-              </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+          {/* Patient Card Preview */}
+          <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <span className="text-xs font-mono font-bold text-sky-400">PATIENT HEALTH RECORD</span>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                 ACTIVE
               </span>
             </div>
-
-            <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2 text-center">
-              <span className="text-[11px] text-slate-400 block font-semibold">Sample Doctor Code</span>
-              <span className="font-mono text-2xl font-black text-sky-400 tracking-widest block">
-                MED-784192
-              </span>
-              <span className="text-[10px] text-slate-400 block">Entered by patient to grant clinical oversight</span>
+            <div className="space-y-3">
+              <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="font-bold text-white">Fasting Blood Glucose</span>
+                  <span className="font-mono text-emerald-400 font-bold">92 mg/dL</span>
+                </div>
+                <div className="text-[11px] text-slate-400">Reference: 70 - 99 mg/dL • Verified from Lab Report</div>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="font-bold text-white">Total Cholesterol</span>
+                  <span className="font-mono text-amber-400 font-bold">208 mg/dL</span>
+                </div>
+                <div className="text-[11px] text-slate-400">Reference: &lt; 200 mg/dL • High limit exceeded</div>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="font-bold text-white">Thyroid Stimulating Hormone (TSH)</span>
+                  <span className="font-mono text-emerald-400 font-bold">1.84 mIU/L</span>
+                </div>
+                <div className="text-[11px] text-slate-400">Reference: 0.40 - 4.50 mIU/L • Normal range</div>
+              </div>
             </div>
-
-            <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-400/20 text-xs text-sky-200">
-              Patients retain sovereign control and can disconnect with one click at any time.
+            <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-400/20 text-xs text-sky-300">
+              💡 Grounded AI: "Your glucose and thyroid levels are within laboratory limits. Let's discuss your lipid profile questions."
             </div>
           </div>
         </div>
       </section>
 
-      {/* Interactive FAQ Section (8+ Questions matching JSON-LD schema) */}
-      <section className="py-20 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+      {/* For Doctors Section */}
+      <section id="for-doctors" className="py-20 border-t border-slate-800/80 bg-slate-900/40">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            {/* Doctor Verification Preview */}
+            <div className="order-2 lg:order-1 p-6 rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <Stethoscope className="w-5 h-5 text-sky-400" />
+                  <span className="text-xs font-mono font-bold text-white">CLINICIAN VERIFICATION CENTER</span>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                  DOCTOR AUDIT
+                </span>
+              </div>
+              <div className="space-y-3">
+                <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-2">
+                  <div className="flex justify-between text-xs items-center">
+                    <span className="font-bold text-white">Biomarker Verification: Hemoglobin</span>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-mono">VERIFIED</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Source text: <span className="text-slate-300 italic">"Hemoglobin (HGB) ... 13.8 g/dL (Ref: 12.0 - 16.0)"</span>
+                  </p>
+                  <div className="text-[10px] text-slate-500 font-mono">Verified by Dr. Reviewer • Immutable log #aud-7819</div>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80 space-y-2">
+                  <div className="flex justify-between text-xs items-center">
+                    <span className="font-bold text-white">Cross-Record Reconciliation</span>
+                    <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-mono">RESOLVED</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Duplicate therapy reconciled between outpatient consult and hospital discharge.
+                  </p>
+                  <div className="text-[10px] text-slate-500 font-mono">Reconciled • Dr. Reviewer</div>
+                </div>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-800/80 border border-slate-700 text-xs text-slate-300">
+                🔒 Every clinician action records a cryptographic audit entry with reviewer identification and timestamp.
+              </div>
+            </div>
+
+            {/* Doctor Content */}
+            <div className="order-1 lg:order-2 space-y-6">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/10 border border-sky-400/20 text-sky-400 text-xs font-bold uppercase tracking-wider">
+                <Stethoscope className="w-3.5 h-3.5" />
+                <span>For Healthcare Providers</span>
+              </div>
+
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight">
+                Accelerate clinical intake with structured, source-verified records.
+              </h2>
+
+              <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
+                Reviewing stacks of disorganized paper lab results wastes valuable consultation time. MedLens structures incoming patient documentation, highlights discrepancies, and preserves source provenance for rapid clinical review.
+              </p>
+
+              <div className="space-y-3 pt-2 text-xs sm:text-sm text-slate-300">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />
+                  <span><strong>Structured Clinical Timeline:</strong> Instant chronological view of previous diagnoses, lab trends, and medications.</span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />
+                  <span><strong>Longitudinal Biomarker Review:</strong> Identify trajectory changes without manually sifting through PDFs.</span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />
+                  <span><strong>Source-Level Provenance:</strong> Click any extracted measurement to view the exact report snippet and page number.</span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />
+                  <span><strong>Verification & Overrides:</strong> Full clinician control to approve, calibrate, or reject automated extractions.</span>
+                </div>
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />
+                  <span><strong>Transparent Audit Trail:</strong> Timestamped records of all clinical evaluations and modifications.</span>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  onClick={() => openAuthModal('doctor')}
+                  className="px-6 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-sky-400 font-bold text-sm border border-sky-500/30 shadow-lg transition-all cursor-pointer inline-flex items-center gap-2"
+                >
+                  <span>Access Doctor Portal</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Security & AI Safety Section */}
+      <section id="security" className="py-20 border-t border-slate-800/80 bg-slate-950">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+          <div className="text-center space-y-3">
+            <span className="text-xs font-mono font-bold text-sky-400 uppercase tracking-widest">Trust & Governance</span>
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+              Security, Privacy & AI Safety
+            </h2>
+            <p className="text-slate-400 text-sm sm:text-base max-w-2xl mx-auto">
+              Engineered with transparent medical safety guardrails and honest privacy architecture.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="p-6 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-3">
+              <div className="w-10 h-10 rounded-2xl bg-sky-500/10 border border-sky-400/20 flex items-center justify-center text-sky-400">
+                <Brain className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-bold text-white">Non-Diagnostic AI Assistant</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                MedLens is designed to organize and clarify medical information. It does not provide definitive medical diagnoses, write prescriptions, or replace clinical judgment.
+              </p>
+            </div>
+
+            <div className="p-6 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-3">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-400/20 flex items-center justify-center text-emerald-400">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-bold text-white">Source-Bound Interpretations</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Lab results are evaluated exclusively against the explicit reference intervals printed on that specific document. If omitted, MedLens transparently flags status as "Cannot determine".
+              </p>
+            </div>
+
+            <div className="p-6 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-3">
+              <div className="w-10 h-10 rounded-2xl bg-purple-500/10 border border-purple-400/20 flex items-center justify-center text-purple-400">
+                <Layers className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-bold text-white">Complete Data Provenance</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Every extracted biomarker, observation, and note is permanently linked to its source document, page number, and original verbatim text for absolute traceability.
+              </p>
+            </div>
+
+            <div className="p-6 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-3">
+              <div className="w-10 h-10 rounded-2xl bg-teal-500/10 border border-teal-400/20 flex items-center justify-center text-teal-400">
+                <Lock className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-bold text-white">Authenticated Access Control</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Role-based authorization ensures patients only access their own records, and doctors can only access records for patients with an approved connection handshake.
+              </p>
+            </div>
+
+            <div className="p-6 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/10 border border-amber-400/20 flex items-center justify-center text-amber-400">
+                <Clock className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-bold text-white">Transparent Audit Trail</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                All clinician reviews, value calibrations, and conflict reconciliations create timestamped audit entries recording the reviewer identity.
+              </p>
+            </div>
+
+            <div className="p-6 rounded-3xl bg-slate-900/90 border border-slate-800 space-y-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-400/20 flex items-center justify-center text-rose-400">
+                <Activity className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-bold text-white">Encrypted Transmission</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Authenticated access with role-based authorization and encrypted network transmission. Real clinical data is securely stored in Google Cloud Firestore.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section id="faq" className="py-20 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         <div className="text-center space-y-3">
           <span className="text-xs font-mono font-bold text-sky-400 uppercase tracking-widest">Frequently Asked Questions</span>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-            Clinical & Technical Questions Answered
+            Clinical & Technical Answers
           </h2>
           <p className="text-slate-400 text-sm max-w-xl mx-auto">
-            Everything you need to know about MedLens reference ranges, data lineage, privacy, and clinical verification.
+            Everything you need to know about MedLens reference ranges, data lineage, and clinical verification.
           </p>
         </div>
 
@@ -390,11 +563,11 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onLaunchDemo }) => {
             return (
               <div 
                 key={idx} 
-                className="rounded-2xl bg-slate-800/50 border border-slate-700/70 overflow-hidden transition-all"
+                className="rounded-2xl bg-slate-900 border border-slate-800/80 overflow-hidden transition-all"
               >
                 <button
                   onClick={() => toggleFaq(idx)}
-                  className="w-full px-6 py-4 text-left flex items-center justify-between gap-4 cursor-pointer hover:bg-slate-800/80 transition-colors"
+                  className="w-full px-6 py-4 text-left flex items-center justify-between gap-4 cursor-pointer hover:bg-slate-800/60 transition-colors"
                   aria-expanded={isOpen}
                 >
                   <span className="font-bold text-sm sm:text-base text-white">{faq.question}</span>
@@ -402,7 +575,7 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onLaunchDemo }) => {
                 </button>
 
                 {isOpen && (
-                  <div className="px-6 pb-5 pt-1 text-xs sm:text-sm text-slate-300 leading-relaxed border-t border-slate-700/40">
+                  <div className="px-6 pb-5 pt-1 text-xs sm:text-sm text-slate-300 leading-relaxed border-t border-slate-800/60">
                     {faq.answer}
                   </div>
                 )}
@@ -412,52 +585,50 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onLaunchDemo }) => {
         </div>
       </section>
 
-      {/* Regulatory Standards & Academic Benchmarks */}
-      <section className="py-16 bg-slate-950 border-t border-slate-800 text-slate-400 text-xs">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-          <div className="text-center space-y-1">
-            <span className="text-[10px] font-mono font-bold text-sky-400 uppercase tracking-widest">Clinical & Regulatory Framework</span>
-            <h3 className="text-lg font-bold text-white">Adherence to Healthcare Standards & Benchmarks</h3>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
-              <span className="font-bold text-white text-xs block">HIPAA Privacy & Security</span>
-              <p className="text-[11px] text-slate-400">Aligned with 45 CFR Part 160 & Part 164 standards for zero-leakage protected health information management.</p>
-            </div>
-
-            <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
-              <span className="font-bold text-white text-xs block">HL7 FHIR Release 4</span>
-              <p className="text-[11px] text-slate-400">Structured biomarker records and observation timelines model FHIR Observation and DiagnosticReport specifications.</p>
-            </div>
-
-            <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
-              <span className="font-bold text-white text-xs block">FDA AI/ML Action Plan</span>
-              <p className="text-[11px] text-slate-400">Incorporates transparency, human-in-the-loop clinician oversight, and rigorous data provenance tracking.</p>
-            </div>
-
-            <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
-              <span className="font-bold text-white text-xs block">NIH Reference Standards</span>
-              <p className="text-[11px] text-slate-400">Reflects NCBI laboratory reference interval methodologies recognizing instrument and demographic variability.</p>
-            </div>
+      {/* Final CTA Section */}
+      <section className="py-20 border-t border-slate-800/80 bg-gradient-to-b from-slate-900 to-slate-950 text-center">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+          <h2 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
+            Start using MedLens today.
+          </h2>
+          <p className="text-slate-300 text-base sm:text-lg max-w-2xl mx-auto">
+            Bring clarity to your diagnostic history or streamline patient record review with verified, reference-range-aware intelligence.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+            <button
+              onClick={() => openAuthModal('patient')}
+              className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold text-sm sm:text-base shadow-xl shadow-sky-500/25 transition-all hover:scale-[1.02] cursor-pointer flex items-center justify-center gap-2"
+            >
+              <span>Get Started</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => openAuthModal('doctor')}
+              className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm sm:text-base border border-slate-700 transition-all cursor-pointer"
+            >
+              Sign In as Clinician
+            </button>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="py-8 border-t border-slate-800/80 bg-slate-950 text-slate-500 text-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
-          <div>
-            <span className="font-bold text-slate-300">MedLens</span> — AI-Powered Clinical Information Intelligence.
-            <p className="text-[11px] text-slate-400 mt-0.5">Built for healthcare hackathons. Designed for clinical integrity.</p>
+      <footer className="py-10 border-t border-slate-800 bg-slate-950 text-slate-500 text-xs">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-6 text-center sm:text-left">
+          <div className="space-y-1">
+            <div className="flex items-center justify-center sm:justify-start gap-2">
+              <Activity className="w-4 h-4 text-sky-400" />
+              <span className="font-bold text-slate-300 text-sm">MedLens</span>
+            </div>
+            <p className="text-[11px] text-slate-400">Clinical Information Intelligence Platform. Source-explicit reference range safety.</p>
           </div>
 
-          <div className="flex items-center gap-4 text-xs">
-            <button onClick={onLaunchDemo} className="hover:text-slate-300 transition-colors cursor-pointer">
-              Demo Dataset
+          <div className="flex items-center gap-6 text-xs font-semibold">
+            <button onClick={() => openAuthModal('patient')} className="hover:text-slate-300 transition-colors cursor-pointer">
+              Patient Portal
             </button>
             <button onClick={() => openAuthModal('doctor')} className="hover:text-slate-300 transition-colors cursor-pointer">
-              Doctor Access
+              Doctor Portal
             </button>
             <a 
               href="https://github.com/ShritanDammoju/medlens-ai-clinical-intelligence" 

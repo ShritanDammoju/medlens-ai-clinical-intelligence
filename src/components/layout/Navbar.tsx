@@ -5,7 +5,6 @@ import {
   Search, 
   UserPlus, 
   Printer, 
-  RotateCcw, 
   Activity, 
   ChevronDown, 
   Menu,
@@ -39,14 +38,13 @@ export const Navbar: React.FC<Props> = ({
     currentPatient, 
     state, 
     setCurrentPatientId, 
-    loadDemoPatient, 
     searchQuery, 
     setSearchQuery,
     isReviewingExternalPatient,
     exitPatientReview
   } = usePatient();
 
-  const { userProfile, role, isDemoMode, openAuthModal, logout } = useAuth();
+  const { userProfile, role, openAuthModal, logout } = useAuth();
   const [copiedCode, setCopiedCode] = useState(false);
 
   const handleCopyCode = () => {
@@ -126,18 +124,7 @@ export const Navbar: React.FC<Props> = ({
             </button>
           )}
 
-          {/* Load Demo Patient (only shown in Demo Mode or when not logged in) */}
-          {isDemoMode && (
-            <button
-              onClick={loadDemoPatient}
-              title="Reset to Alex Carter Hackathon Demo Dataset"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
-              <span className="hidden sm:inline">Reset Demo</span>
-              <span className="sm:hidden">Reset</span>
-            </button>
-          )}
+
 
           {/* Patient Selector (when multiple patients exist in clinician view) */}
           {state.patients.length > 1 && (

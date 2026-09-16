@@ -432,50 +432,6 @@ Vitamin D: 19 ng/mL (ref: 30 - 100)`);
                   <span>up to 25MB</span>
                 </div>
               </div>
-
-              {/* Quick Sample Demo Fast-Track */}
-              <div className="mt-4 pt-4 border-t border-slate-100">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-2">
-                  Demo Fast-Track: Select Sample Report
-                </span>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const sampleFile = new File(["TSH 2.45 uIU/mL (0.4-4.5)\nFree T4 1.18 ng/dL (0.8-1.8)"], "Thyroid_Panel_Followup.pdf", { type: "application/pdf" });
-                      handleFileSelected(sampleFile);
-                    }}
-                    className="p-2 rounded-xl bg-slate-50 hover:bg-sky-50 border border-slate-200 text-left transition-colors cursor-pointer"
-                  >
-                    <span className="font-bold text-[11px] text-slate-800 block">Thyroid Panel</span>
-                    <span className="text-[10px] text-slate-400">PDF • 280 KB</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const sampleFile = new File(["Troponin I 4.2 ng/L (< 14)\nBNP 38 pg/mL (< 100)"], "Cardiac_Enzymes_Screen.pdf", { type: "application/pdf" });
-                      handleFileSelected(sampleFile);
-                    }}
-                    className="p-2 rounded-xl bg-slate-50 hover:bg-sky-50 border border-slate-200 text-left transition-colors cursor-pointer"
-                  >
-                    <span className="font-bold text-[11px] text-slate-800 block">Cardiac Screen</span>
-                    <span className="text-[10px] text-slate-400">PDF • 310 KB</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const sampleFile = new File(["Hb 13.6 g/dL (12.0-16.0)\nFBS 115 mg/dL (70-99)"], "Urinalysis_Routine.pdf", { type: "application/pdf" });
-                      handleFileSelected(sampleFile);
-                    }}
-                    className="p-2 rounded-xl bg-slate-50 hover:bg-sky-50 border border-slate-200 text-left transition-colors cursor-pointer"
-                  >
-                    <span className="font-bold text-[11px] text-slate-800 block">Metabolic CBC</span>
-                    <span className="text-[10px] text-slate-400">PDF • 190 KB</span>
-                  </button>
-                </div>
-              </div>
             </div>
           ) : (
             /* File Review Ready State */
@@ -504,9 +460,9 @@ Vitamin D: 19 ng/mL (ref: 30 - 100)`);
               <div className="p-4 rounded-2xl bg-sky-50/70 border border-sky-200/80 text-xs text-sky-900 flex items-start gap-2.5">
                 <ShieldCheck className="w-4 h-4 text-sky-700 shrink-0 mt-0.5" />
                 <div>
-                  <strong className="font-semibold">Client-Side Confidential Processing:</strong>
+                  <strong className="font-semibold">Secure Clinical Extraction:</strong>
                   <p className="mt-0.5 text-sky-800">
-                    Your report is analyzed locally with client-side OCR extraction. No unencrypted protected health data leaves your device.
+                    Authenticated access with role-based authorization and encrypted network transmission. Your report and extracted biomarkers are saved to your verified account.
                   </p>
                 </div>
               </div>

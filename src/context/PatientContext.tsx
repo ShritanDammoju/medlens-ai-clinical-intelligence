@@ -76,12 +76,9 @@ interface PatientContextType {
 const PatientContext = createContext<PatientContextType | undefined>(undefined);
 
 export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { userProfile, isDemoMode, role, enterDemoMode } = useAuth();
+  const { userProfile, role } = useAuth();
 
   const [state, setState] = useState<AppState>(() => {
-    if (isDemoMode) {
-      return initializeWithDemoData();
-    }
     if (userProfile) {
       const cached = loadUserAppState(userProfile.uid);
       if (cached.patients.length > 0) return cached;
@@ -98,88 +95,79 @@ export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const aiMode = getAIMode();
 
-  // Load user-specific state or demo state whenever auth mode changes
+  // Load user-specific state from Firestore (authoritative source of truth)
   useEffect(() => {
-    if (isDemoMode) {
-      setState(initializeWithDemoData());
-      setIsReviewingExternalPatient(false);
-      return;
-    }
-
     if (userProfile) {
-      // Load cached user state
-      const userState = loadUserAppState(userProfile.uid);
-      if (userState.patients.length > 0) {
-        setState(userState);
-      } else if (userProfile.role === 'patient') {
-        // Initial profile for patient
-        const newPat: Patient = {
-          id: userProfile.uid,
-          userId: userProfile.uid,
-          name: userProfile.displayName || 'Patient',
-          age: 32,
-          sex: 'Female',
-          dob: '1994-05-15',
-          email: userProfile.email,
-          connectedDoctorIds: [],
-          createdAt: userProfile.createdAt,
-          updatedAt: new Date().toISOString(),
-          isDemo: false
-        };
-        const freshState: AppState = {
-          ...createEmptyAppState(),
-          patients: [newPat],
-          activePatientId: newPat.id
-        };
-        setState(freshState);
-        saveUserAppState(userProfile.uid, freshState);
-        savePatientRecordToFirestore(newPat);
-      } else {
-        // Doctor start state
-        setState(createEmptyAppState());
+      // First, if available, load local cache as temporary placeholder
+      const cachedState = loadUserAppState(userProfile.uid);
+      if (cachedState.patients.length > 0) {
+        setState(cachedState);
       }
 
-      // Sync from Firestore in background
+      // Synchronize authoritatively from Firestore
       (async () => {
         try {
           if (userProfile.role === 'patient') {
-            const [remoteReports, remoteLabs] = await Promise.all([
+            const [remotePatient, remoteReports, remoteLabs] = await Promise.all([
+              getPatientById(userProfile.uid),
               loadPatientReportsFromFirestore(userProfile.uid),
               loadPatientLabsFromFirestore(userProfile.uid)
             ]);
 
-            if (remoteReports.length > 0 || remoteLabs.length > 0) {
-              setState(prev => ({
-                ...prev,
-                reports: remoteReports.length > 0 ? remoteReports : prev.reports,
-                labs: remoteLabs.length > 0 ? remoteLabs : prev.labs
-              }));
+            const activePatient: Patient = remotePatient || {
+              id: userProfile.uid,
+              userId: userProfile.uid,
+              name: userProfile.displayName || 'Patient',
+              age: 32,
+              sex: 'Female',
+              dob: '1994-05-15',
+              email: userProfile.email,
+              connectedDoctorIds: [],
+              createdAt: userProfile.createdAt,
+              updatedAt: new Date().toISOString(),
+              isDemo: false
+            };
+
+            // If new patient record was created, save to Firestore
+            if (!remotePatient) {
+              await savePatientRecordToFirestore(activePatient);
             }
+
+            const authoritativeState: AppState = {
+              ...createEmptyAppState(),
+              patients: [activePatient],
+              activePatientId: activePatient.id,
+              reports: remoteReports,
+              labs: remoteLabs
+            };
+
+            setState(authoritativeState);
+            saveUserAppState(userProfile.uid, authoritativeState);
+          } else {
+            // Doctor starts with clean state
+            setState(createEmptyAppState());
           }
         } catch (e) {
-          console.warn('Firestore sync note:', e);
+          console.warn('Authoritative Firestore sync warning:', e);
         }
       })();
     } else {
       setState(createEmptyAppState());
+      setConnections([]);
+      setPendingDoctorRequests([]);
+      setIsReviewingExternalPatient(false);
     }
-  }, [isDemoMode, userProfile?.uid, userProfile?.role]);
+  }, [userProfile?.uid, userProfile?.role]);
 
   // Persist state to scoped storage
   useEffect(() => {
-    if (!isDemoMode && userProfile) {
+    if (userProfile) {
       saveUserAppState(userProfile.uid, state);
     }
-  }, [state, isDemoMode, userProfile?.uid]);
+  }, [state, userProfile?.uid]);
 
   // Fetch connections for patient or doctor
   const refreshConnections = useCallback(async () => {
-    if (isDemoMode) {
-      setConnections([]);
-      setPendingDoctorRequests([]);
-      return;
-    }
-
     if (!userProfile) return;
 
     try {
@@ -197,7 +185,7 @@ export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } catch (e) {
       console.warn('Refresh connections notice:', e);
     }
-  }, [isDemoMode, userProfile?.uid, userProfile?.role]);
+  }, [userProfile?.uid, userProfile?.role]);
 
   useEffect(() => {
     refreshConnections();
@@ -210,14 +198,12 @@ export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const loadDemoPatient = () => {
-    enterDemoMode();
-    const freshDemoState = initializeWithDemoData();
-    setState(freshDemoState);
-    setIsReviewingExternalPatient(false);
+    // Demo mode is permanently retired in production
+    console.info('MedLens runs in authenticated production mode.');
   };
 
   const addPatient = (patientData: Omit<Patient, 'id' | 'createdAt' | 'updatedAt'>): Patient => {
-    const newId = userProfile && !isDemoMode ? userProfile.uid : 'pat-' + Math.random().toString(36).substring(2, 9);
+    const newId = userProfile ? userProfile.uid : 'pat-' + Math.random().toString(36).substring(2, 9);
     const now = new Date().toISOString();
     const newPatient: Patient = {
       ...patientData,
@@ -225,7 +211,7 @@ export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ child
       userId: userProfile?.uid,
       createdAt: now,
       updatedAt: now,
-      isDemo: Boolean(isDemoMode)
+      isDemo: false
     };
 
     const newTimelineEvent: TimelineEvent = {
@@ -247,7 +233,7 @@ export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ child
       timeline: [newTimelineEvent, ...prev.timeline]
     }));
 
-    if (!isDemoMode) {
+    if (userProfile) {
       savePatientRecordToFirestore(newPatient);
     }
 
@@ -287,7 +273,7 @@ export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ child
       timeline: [newTimelineEvent, ...prev.timeline]
     }));
 
-    if (!isDemoMode) {
+    if (userProfile) {
       saveReportAndLabsToFirestore(enrichedReport, enrichedLabs);
     }
   };
@@ -343,7 +329,7 @@ export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ child
         verificationStatus: status
       };
 
-      if (!isDemoMode) {
+      if (userProfile) {
         saveLabsToFirestore(updatedLabs);
         saveAuditEntryToFirestore(newAuditEntry);
       }
@@ -381,7 +367,7 @@ export const PatientProvider: React.FC<{ children: React.ReactNode }> = ({ child
         verificationStatus: 'verified'
       };
 
-      if (!isDemoMode) {
+      if (userProfile) {
         saveAuditEntryToFirestore(newAuditEntry);
       }
 

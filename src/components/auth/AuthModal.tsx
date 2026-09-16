@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { useAuth } from '../../firebase/AuthContext';
 import { UserRole } from '../../types/medical';
 import { Shield, User, Stethoscope, Lock, CheckCircle2, X } from 'lucide-react';
@@ -10,7 +10,6 @@ export const AuthModal: React.FC = () => {
     targetRole, 
     setTargetRole, 
     loginWithGoogle, 
-    enterDemoMode,
     authLoading, 
     authError 
   } = useAuth();
@@ -64,7 +63,7 @@ export const AuthModal: React.FC = () => {
                 }`}
               >
                 <User className={`w-5 h-5 mb-2 ${targetRole === 'patient' ? 'text-sky-600' : 'text-slate-400'}`} />
-                <div className="font-bold text-sm">Patient Mode</div>
+                <div className="font-bold text-sm">Patient Account</div>
                 <div className="text-[11px] text-slate-500 mt-0.5">Explore reports, summaries & ask AI</div>
               </button>
 
@@ -78,7 +77,7 @@ export const AuthModal: React.FC = () => {
                 }`}
               >
                 <Stethoscope className={`w-5 h-5 mb-2 ${targetRole === 'doctor' ? 'text-sky-600' : 'text-slate-400'}`} />
-                <div className="font-bold text-sm">Clinician Reviewer</div>
+                <div className="font-bold text-sm">Doctor Account</div>
                 <div className="text-[11px] text-slate-500 mt-0.5">Verification center, audit log & overrides</div>
               </button>
             </div>
@@ -110,21 +109,11 @@ export const AuthModal: React.FC = () => {
             </svg>
             <span>{authLoading ? 'Signing In...' : 'Sign In with Google'}</span>
           </button>
-
-          {/* Quick Offline Demo Bypass */}
-          <div className="pt-2 text-center">
-            <button
-              onClick={enterDemoMode}
-              className="text-xs font-semibold text-slate-500 hover:text-sky-600 transition-colors cursor-pointer"
-            >
-              Continue with Simulated Offline Demo
-            </button>
-          </div>
         </div>
 
         {/* Security Tag */}
         <div className="p-3.5 bg-slate-50 border-t border-slate-100 text-center text-[11px] text-slate-500">
-          🔒 Secure authentication with HIPAA-aligned zero-leakage client privacy.
+          🔒 Authenticated access with role-based authorization and encrypted network transmission.
         </div>
       </div>
     </div>

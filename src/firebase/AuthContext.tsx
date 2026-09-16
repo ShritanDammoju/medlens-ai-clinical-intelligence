@@ -29,21 +29,13 @@ interface AuthContextType {
   closeAuthModal: () => void;
   loginWithGoogle: (role: UserRole) => Promise<void>;
   logout: () => Promise<void>;
-  enterDemoMode: () => void;
-  exitDemoMode: () => void;
 }
-
-const DEMO_SESSION_KEY = 'medlens_demo_session_active';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(() => getCurrentStoredProfile());
-  const [isDemoMode, setIsDemoMode] = useState<boolean>(() => {
-    // If already logged in with a real account, never start in demo mode
-    if (getCurrentStoredProfile()) return false;
-    return sessionStorage.getItem(DEMO_SESSION_KEY) === 'true';
-  });
+  const isDemoMode = false;
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -62,8 +54,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (remoteProfile) {
             setUserProfile(remoteProfile);
             saveStoredProfile(remoteProfile);
-            setIsDemoMode(false);
-            sessionStorage.removeItem(DEMO_SESSION_KEY);
           }
         } catch (e) {
           console.warn('Sync profile on auth state change notice:', e);
@@ -91,8 +81,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const profile = await signInWithGoogleAuth(selectedRole);
       setUserProfile(profile);
-      setIsDemoMode(false);
-      sessionStorage.removeItem(DEMO_SESSION_KEY);
       setShowAuthModal(false);
     } catch (err: any) {
       setAuthError(err?.message || 'Authentication encountered an error.');
@@ -106,22 +94,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await signOutUser();
       setUserProfile(null);
-      setIsDemoMode(false);
-      sessionStorage.removeItem(DEMO_SESSION_KEY);
     } finally {
       setAuthLoading(false);
     }
-  };
-
-  const enterDemoMode = () => {
-    setIsDemoMode(true);
-    sessionStorage.setItem(DEMO_SESSION_KEY, 'true');
-    setShowAuthModal(false);
-  };
-
-  const exitDemoMode = () => {
-    setIsDemoMode(false);
-    sessionStorage.removeItem(DEMO_SESSION_KEY);
   };
 
   return (
@@ -138,9 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         openAuthModal,
         closeAuthModal,
         loginWithGoogle,
-        logout,
-        enterDemoMode,
-        exitDemoMode
+        logout
       }}
     >
       {children}

@@ -55,39 +55,56 @@ export const Sidebar: React.FC<Props> = ({
 
   const isDoctor = role === 'doctor';
 
-  const navItems = [
-    ...(isDoctor ? [
-      { 
-        id: 'doctor_portal' as NavTab, 
-        label: 'Doctor Dashboard', 
-        icon: Stethoscope,
-        badge: pendingDoctorRequests.length > 0 ? `${pendingDoctorRequests.length} req` : undefined,
-        badgeColor: 'bg-emerald-400 text-slate-950 font-bold'
-      }
-    ] : []),
-    { id: 'overview' as NavTab, label: isDoctor ? 'Patient Overview' : 'Overview', icon: LayoutDashboard },
-    { id: 'patients' as NavTab, label: 'Patient Record', icon: Users },
-    { id: 'reports' as NavTab, label: 'Reports', icon: FileText, count: state.reports.length },
-    { id: 'medications' as NavTab, label: 'Medications', icon: Pill, count: state.meds.length },
-    { id: 'labs' as NavTab, label: 'Lab Results', icon: FlaskConical, count: state.labs.length },
-    { id: 'comparison' as NavTab, label: 'Comparison', icon: GitCompare },
-    { id: 'timeline' as NavTab, label: 'Timeline', icon: Clock },
-    { 
-      id: 'insights' as NavTab, 
-      label: 'AI Insights', 
-      icon: Sparkles,
-      badge: conflictsCount > 0 ? `${conflictsCount} conflict` : undefined,
-      badgeColor: 'bg-rose-100 text-rose-800'
-    },
-    { 
-      id: 'verification' as NavTab, 
-      label: 'Verification', 
-      icon: CheckCheck,
-      badge: needsReviewCount > 0 ? `${needsReviewCount}` : undefined,
-      badgeColor: 'bg-amber-100 text-amber-800'
-    },
-    { id: 'settings' as NavTab, label: 'Settings & Access', icon: Settings },
-  ];
+  const navItems = isDoctor
+    ? [
+        { 
+          id: 'doctor_portal' as NavTab, 
+          label: 'Clinician Dashboard', 
+          icon: Stethoscope,
+          badge: pendingDoctorRequests.length > 0 ? `${pendingDoctorRequests.length} pending` : undefined,
+          badgeColor: 'bg-emerald-400 text-slate-950 font-bold'
+        },
+        ...(isReviewingExternalPatient ? [
+          { id: 'overview' as NavTab, label: 'Patient Overview', icon: LayoutDashboard },
+          { id: 'patients' as NavTab, label: 'Patient Record', icon: Users },
+          { id: 'reports' as NavTab, label: 'Diagnostic Reports', icon: FileText, count: state.reports.length },
+          { id: 'labs' as NavTab, label: 'Biomarkers & Trends', icon: FlaskConical, count: state.labs.length },
+          { id: 'medications' as NavTab, label: 'Medications', icon: Pill, count: state.meds.length },
+          { id: 'timeline' as NavTab, label: 'Clinical Timeline', icon: Clock },
+          { 
+            id: 'verification' as NavTab, 
+            label: 'Verification Center', 
+            icon: CheckCheck,
+            badge: needsReviewCount > 0 ? `${needsReviewCount}` : undefined,
+            badgeColor: 'bg-amber-100 text-amber-800'
+          },
+        ] : []),
+        { id: 'settings' as NavTab, label: 'Settings & Profile', icon: Settings },
+      ]
+    : [
+        { id: 'overview' as NavTab, label: 'Overview', icon: LayoutDashboard },
+        { id: 'patients' as NavTab, label: 'My Health Record', icon: Users },
+        { id: 'reports' as NavTab, label: 'Diagnostic Reports', icon: FileText, count: state.reports.length },
+        { id: 'labs' as NavTab, label: 'Lab Trends', icon: FlaskConical, count: state.labs.length },
+        { id: 'medications' as NavTab, label: 'Medications', icon: Pill, count: state.meds.length },
+        { id: 'timeline' as NavTab, label: 'Health Timeline', icon: Clock },
+        { 
+          id: 'insights' as NavTab, 
+          label: 'AI Insights', 
+          icon: Sparkles,
+          badge: conflictsCount > 0 ? `${conflictsCount} conflict` : undefined,
+          badgeColor: 'bg-rose-100 text-rose-800'
+        },
+        { id: 'comparison' as NavTab, label: 'Report Comparison', icon: GitCompare },
+        { 
+          id: 'verification' as NavTab, 
+          label: 'Verification', 
+          icon: CheckCheck,
+          badge: needsReviewCount > 0 ? `${needsReviewCount}` : undefined,
+          badgeColor: 'bg-amber-100 text-amber-800'
+        },
+        { id: 'settings' as NavTab, label: 'Settings & Clinicians', icon: Settings },
+      ];
 
   return (
     <>

@@ -38,7 +38,7 @@ export const DoctorDashboard: React.FC<Props> = ({ onNavigateTab }) => {
   const [searchPatient, setSearchPatient] = useState('');
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
-  const doctorCode = userProfile?.doctorCode || 'MED-HEALTH';
+  const doctorCode = userProfile?.doctorCode || (userProfile?.uid ? `MED-${userProfile.uid.substring(0, 6).toUpperCase()}` : 'Generating...');
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(doctorCode);

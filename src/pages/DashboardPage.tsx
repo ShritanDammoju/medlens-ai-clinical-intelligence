@@ -40,7 +40,17 @@ export const DashboardPage: React.FC<Props> = ({ onNavigateTab, onOpenUpload, on
   const needsReviewCount = patientLabs.filter((l: LabResult) => l.verificationStatus === 'needs_review').length;
   const abnormalCount = patientLabs.filter((l: LabResult) => l.status === 'LOW' || l.status === 'HIGH').length;
 
-  const isRealAccountEmpty = !currentPatient?.isDemo && patientReports.length === 0 && patientLabs.length === 0;
+  const isAccountEmpty = patientReports.length === 0 && patientLabs.length === 0;
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  };
+
+  const displayName = currentPatient?.name || userProfile?.displayName || 'there';
+  const firstName = displayName.split(' ')[0];
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -71,16 +81,11 @@ export const DashboardPage: React.FC<Props> = ({ onNavigateTab, onOpenUpload, on
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              Clinical Overview
+              {getGreeting()}, {firstName}
             </h1>
-            {currentPatient?.isDemo && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 uppercase">
-                Demo Dataset
-              </span>
-            )}
           </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Patient: <strong className="text-slate-800">{currentPatient?.name || userProfile?.displayName || 'Clinical User'}</strong> • {currentPatient?.age || 32} years • {currentPatient?.sex || 'Female'} • ID: <code className="text-xs font-mono">{currentPatient?.id?.substring(0, 12)}...</code>
+            Patient: <strong className="text-slate-800">{displayName}</strong> • {currentPatient?.age || 32} years • {currentPatient?.sex || 'Female'} • ID: <code className="text-xs font-mono">{currentPatient?.id?.substring(0, 12)}...</code>
           </p>
         </div>
 
@@ -106,18 +111,18 @@ export const DashboardPage: React.FC<Props> = ({ onNavigateTab, onOpenUpload, on
       </div>
 
       {/* Real Account Empty State Onboarding: 5-Step Clinical Workflow */}
-      {isRealAccountEmpty && (
+      {isAccountEmpty && (
         <div className="bg-gradient-to-r from-sky-900 via-slate-900 to-sky-950 rounded-3xl p-6 sm:p-8 text-white space-y-6 shadow-xl border border-sky-800/40">
           <div className="space-y-2">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/20 text-sky-300 text-xs font-bold uppercase tracking-wider">
               <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-              <span>Guided Onboarding • What Should I Do Next?</span>
+              <span>Getting Started</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              Welcome, {userProfile?.displayName || 'Patient'}! Your Clinical Intelligence Workspace is ready.
+              No medical reports yet. Upload your first report to begin building your structured clinical record.
             </h2>
             <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-              MedLens transforms your scattered diagnostic reports into an organized, reference-range-verified patient record. Follow these 5 clear steps to build your verified clinical baseline:
+              MedLens unifies fragmented diagnostic reports into an organized, reference-range-verified patient record. Follow these steps to build your baseline:
             </p>
           </div>
 
