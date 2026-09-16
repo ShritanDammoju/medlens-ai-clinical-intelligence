@@ -36,6 +36,15 @@ export interface UserProfile {
   specialization?: string;
   hospitalOrClinic?: string;
   createdAt: string;
+  onboardingCompleted?: boolean;
+  dateOfBirth?: string;
+  age?: number;
+  sex?: string;
+  symptoms?: string[];
+  conditions?: string[];
+  allergies?: string[];
+  medications?: string[];
+  notes?: string;
 }
 
 export interface DoctorProfile {

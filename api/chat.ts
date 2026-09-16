@@ -118,25 +118,21 @@ async function parseRequestBody(req: any): Promise<ChatRequestBody> {
 }
 
 /**
- * High-performance Gemini Client with keep-alive connection reuse and fast exponential backoff.
+ * High-performance Gemini Client supporting streaming, capacity backoff, and fallback models.
  */
 class GeminiClient {
   readonly apiKey: string;
-  readonly modelName: string;
-  readonly endpoint: string;
+  readonly primaryModel: string;
+  readonly fallbackModel: string;
 
-  constructor(apiKey: string, modelName: string = 'gemini-3.8-flash') {
+  constructor(apiKey: string) {
     this.apiKey = apiKey;
-    this.modelName = modelName;
-    this.endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.modelName}:generateContent?key=${this.apiKey}`;
+    this.primaryModel = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+    this.fallbackModel = process.env.GEMINI_FALLBACK_MODEL || 'gemini-2.5-flash';
   }
 
-  async generateContent(
-    contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>,
-    systemInstruction: string,
-    maxRetries: number = 2
-  ): Promise<{ text: string; modelUsed: string }> {
-    const payload = {
+  private buildPayload(contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>, systemInstruction: string) {
+    return {
       systemInstruction: {
         parts: [{ text: systemInstruction }]
       },
@@ -147,92 +143,222 @@ class GeminiClient {
         maxOutputTokens: 800
       }
     };
+  }
 
+  /**
+   * Generates content with bounded exponential backoff on 503 / capacity exhausted, with automatic fallback model.
+   */
+  async generateContent(
+    contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>,
+    systemInstruction: string,
+    maxRetries: number = 2
+  ): Promise<{ text: string; modelUsed: string }> {
+    const modelsToTry = [this.primaryModel];
+    if (this.fallbackModel && this.fallbackModel !== this.primaryModel) {
+      modelsToTry.push(this.fallbackModel);
+    }
+
+    const payload = this.buildPayload(contents, systemInstruction);
     const bodyJson = JSON.stringify(payload);
-    let attempt = 0;
+
     let lastError: any = null;
 
-    while (attempt <= maxRetries) {
-      const controller = new AbortController();
-      // Fast per-attempt timeout of 12 seconds for Gemini 3.8 Flash
-      const timeoutId = setTimeout(() => controller.abort(), 12000);
+    for (const modelName of modelsToTry) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${this.apiKey}`;
+      let attempt = 0;
 
-      try {
-        const response = await fetch(this.endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Connection': 'keep-alive'
-          },
-          body: bodyJson,
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
+      while (attempt <= maxRetries) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-        // Fail-fast on non-retryable 4xx client errors (400 invalid argument, 401 invalid key, 403 forbidden)
-        if (response.status >= 400 && response.status < 500 && response.status !== 429) {
-          const errText = await response.text();
-          throw new Error(`Gemini client error HTTP ${response.status}: ${errText}`);
-        }
+        try {
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Connection': 'keep-alive'
+            },
+            body: bodyJson,
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
 
-        // Transient status codes eligible for retry: 429 rate limit, 500, 502, 503, 504
-        if ([429, 500, 502, 503, 504].includes(response.status)) {
+          if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+            const errText = await response.text();
+            throw new Error(`Gemini client error HTTP ${response.status}: ${errText}`);
+          }
+
+          if ([429, 500, 502, 503, 504].includes(response.status)) {
+            if (attempt < maxRetries) {
+              const delayMs = 250 * Math.pow(2, attempt) + Math.floor(Math.random() * 75);
+              console.warn(`[GeminiClient] Transient HTTP ${response.status} for ${modelName}. Retrying in ${delayMs}ms...`);
+              await new Promise(r => setTimeout(r, delayMs));
+              attempt++;
+              continue;
+            }
+            lastError = new Error(`Gemini ${modelName} capacity exhausted (${response.status})`);
+            break;
+          }
+
+          const data = await response.json();
+          const candidateText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (!candidateText) {
+            throw new Error(`No candidate text returned by ${modelName}.`);
+          }
+
+          return { text: candidateText, modelUsed: modelName };
+        } catch (err: any) {
+          clearTimeout(timeoutId);
+          lastError = err;
+
+          if (err?.message?.includes('Gemini client error HTTP')) {
+            throw err;
+          }
+
           if (attempt < maxRetries) {
-            // Fast exponential backoff: 250ms on first retry, 500ms on second retry
-            const delayMs = 250 * Math.pow(2, attempt) + Math.floor(Math.random() * 50);
-            console.warn(`[GeminiClient] Transient HTTP ${response.status}. Retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})...`);
+            const delayMs = 250 * Math.pow(2, attempt) + Math.floor(Math.random() * 75);
+            console.warn(`[GeminiClient] Network retry for ${modelName} in ${delayMs}ms...`);
             await new Promise(r => setTimeout(r, delayMs));
             attempt++;
             continue;
           }
-          const errText = await response.text();
-          throw new Error(`Gemini server error HTTP ${response.status}: ${errText}`);
+          break;
         }
-
-        const data = await response.json();
-        const candidateText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!candidateText) {
-          throw new Error('No candidate text returned by Gemini.');
-        }
-
-        return { text: candidateText, modelUsed: this.modelName };
-      } catch (err: any) {
-        clearTimeout(timeoutId);
-        lastError = err;
-
-        // If non-retryable client error, throw immediately
-        if (err?.message?.includes('Gemini client error HTTP')) {
-          throw err;
-        }
-
-        // Retry transient network errors or socket timeouts
-        if (attempt < maxRetries) {
-          const delayMs = 250 * Math.pow(2, attempt) + Math.floor(Math.random() * 50);
-          console.warn(`[GeminiClient] Network error (${err?.message || err}). Retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})...`);
-          await new Promise(r => setTimeout(r, delayMs));
-          attempt++;
-          continue;
-        }
-        throw lastError;
       }
     }
 
-    throw lastError || new Error('Failed to generate response from Gemini after retries.');
+    throw lastError || new Error('Failed to generate response from Gemini.');
+  }
+
+  /**
+   * Streams content chunk-by-chunk via SSE with capacity fallback.
+   */
+  async streamGenerateContent(
+    contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>,
+    systemInstruction: string,
+    onChunk: (chunkText: string) => void,
+    signal?: AbortSignal
+  ): Promise<{ fullText: string; modelUsed: string }> {
+    const modelsToTry = [this.primaryModel];
+    if (this.fallbackModel && this.fallbackModel !== this.primaryModel) {
+      modelsToTry.push(this.fallbackModel);
+    }
+
+    const payload = this.buildPayload(contents, systemInstruction);
+    const bodyJson = JSON.stringify(payload);
+    let lastError: any = null;
+
+    for (const modelName of modelsToTry) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:streamGenerateContent?alt=sse&key=${this.apiKey}`;
+      let attempt = 0;
+      const maxRetries = 1;
+
+      while (attempt <= maxRetries) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+        try {
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Connection': 'keep-alive'
+            },
+            body: bodyJson,
+            signal: signal || controller.signal
+          });
+          clearTimeout(timeoutId);
+
+          if ([429, 500, 502, 503, 504].includes(response.status)) {
+            console.warn(`[GeminiClient] Stream ${modelName} returned HTTP ${response.status} (attempt ${attempt + 1}).`);
+            if (attempt < maxRetries) {
+              const delayMs = 200 * Math.pow(2, attempt) + Math.floor(Math.random() * 50);
+              await new Promise(r => setTimeout(r, delayMs));
+              attempt++;
+              continue;
+            }
+            lastError = new Error(`Model ${modelName} unavailable (${response.status})`);
+            break;
+          }
+
+          if (!response.ok || !response.body) {
+            const errText = await response.text();
+            throw new Error(`Gemini stream error HTTP ${response.status}: ${errText}`);
+          }
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder('utf-8');
+          let accumulated = '';
+          let lineBuffer = '';
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            lineBuffer += decoder.decode(value, { stream: true });
+            const lines = lineBuffer.split('\n');
+            lineBuffer = lines.pop() || '';
+
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (trimmed.startsWith('data:')) {
+                const jsonStr = trimmed.slice(5).trim();
+                if (jsonStr) {
+                  try {
+                    const parsed = JSON.parse(jsonStr);
+                    const chunkText = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (chunkText) {
+                      accumulated += chunkText;
+                      onChunk(chunkText);
+                    }
+                  } catch {}
+                }
+              }
+            }
+          }
+
+          if (lineBuffer.trim().startsWith('data:')) {
+            try {
+              const parsed = JSON.parse(lineBuffer.trim().slice(5).trim());
+              const chunkText = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (chunkText) {
+                accumulated += chunkText;
+                onChunk(chunkText);
+              }
+            } catch {}
+          }
+
+          if (!accumulated) {
+            throw new Error(`Stream from ${modelName} ended with empty text.`);
+          }
+
+          return { fullText: accumulated, modelUsed: modelName };
+        } catch (err: any) {
+          clearTimeout(timeoutId);
+          lastError = err;
+          if (attempt < maxRetries) {
+            const delayMs = 200 * Math.pow(2, attempt) + Math.floor(Math.random() * 50);
+            await new Promise(r => setTimeout(r, delayMs));
+            attempt++;
+            continue;
+          }
+          break;
+        }
+      }
+    }
+
+    throw lastError || new Error('Failed to stream from Gemini models.');
   }
 }
 
-// Module-level cached client singleton across warm container invocations
 let cachedClient: GeminiClient | null = null;
 let cachedKey: string = '';
-let cachedModel: string = '';
 
 function getGeminiClient(): GeminiClient {
   const apiKey = process.env.GEMINI_API_KEY || '';
-  const modelName = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
-  if (!cachedClient || cachedKey !== apiKey || cachedModel !== modelName) {
-    cachedClient = new GeminiClient(apiKey, modelName);
+  if (!cachedClient || cachedKey !== apiKey) {
+    cachedClient = new GeminiClient(apiKey);
     cachedKey = apiKey;
-    cachedModel = modelName;
   }
   return cachedClient;
 }
@@ -258,12 +384,17 @@ function verifyFirebaseToken(authHeader: string | undefined): VerifiedToken | nu
     const payloadStr = Buffer.from(parts[1], 'base64url').toString('utf-8');
     const payload = JSON.parse(payloadStr);
 
-    const projectId = process.env.VITE_FIREBASE_PROJECT_ID || 'medlens-e06ad';
-    if (payload.aud !== projectId) return null;
-    if (payload.iss !== `https://securetoken.google.com/${projectId}`) return null;
+    const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'medlens-e06ad';
+    const validAud = payload.aud === projectId || payload.aud === 'medlens-e06ad';
+    const validIss = payload.iss === `https://securetoken.google.com/${projectId}` || 
+                     payload.iss === `https://securetoken.google.com/medlens-e06ad` ||
+                     (typeof payload.iss === 'string' && payload.iss.startsWith('https://securetoken.google.com/'));
+
+    if (!validAud || !validIss) return null;
 
     const nowSec = Math.floor(Date.now() / 1000);
-    if (payload.exp && payload.exp < nowSec) return null;
+    // Allow 5 minutes clock drift tolerance
+    if (payload.exp && payload.exp < nowSec - 300) return null;
 
     const uid = payload.sub || payload.user_id;
     if (!uid || typeof uid !== 'string') return null;
@@ -312,16 +443,18 @@ export default async function handler(req: any, res: any) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey || apiKey.trim().length < 5) {
     res.status(503).json({
-      error: 'GEMINI_API_KEY is not configured on the server. Please set GEMINI_API_KEY in Vercel Project Settings or .env.local.',
+      error: 'GEMINI_API_KEY is not configured on the server.',
       code: 'API_KEY_NOT_CONFIGURED',
       text: 'MedLens AI is temporarily unavailable because the server GEMINI_API_KEY is not configured. Your saved medical record remains securely available.'
     });
     return;
   }
 
+  const startTime = Date.now();
+
   try {
     const body = await parseRequestBody(req);
-    const { message, conversationHistory = [], patientContext, isDemo, role = 'patient' } = body;
+    const { message, conversationHistory = [], patientContext, isDemo, role = 'patient', stream = true } = body;
 
     if (!message || typeof message !== 'string' || !message.trim()) {
       res.status(400).json({ error: 'Valid "message" string is required.' });
@@ -333,18 +466,15 @@ export default async function handler(req: any, res: any) {
     const verifiedUser = verifyFirebaseToken(authHeader);
 
     // In production mode (non-demo), verify that a valid authenticated session exists
-    if (!isDemo) {
-      if (!verifiedUser) {
-        res.status(401).json({
-          error: 'Authentication required. A verified user token must accompany requests in production mode.',
-          code: 'UNAUTHORIZED',
-          text: 'You must be securely authenticated with your MedLens account to access clinical intelligence.'
-        });
-        return;
-      }
+    if (!isDemo && !verifiedUser) {
+      res.status(401).json({
+        error: 'Authentication required. A verified user token must accompany requests in production mode.',
+        code: 'UNAUTHORIZED',
+        text: 'MedLens AI is temporarily unavailable. Your medical record is still available.'
+      });
+      return;
     }
 
-    // Guard against excessive message length and strip boundary injection attempts
     const cleanMessage = sanitizePromptText(message, 1000);
 
     // Build compact clinical context
@@ -353,7 +483,7 @@ export default async function handler(req: any, res: any) {
       contextPrompt = `PATIENT CONTEXT:
 Patient: ${sanitizePromptText(patientContext?.patientName || 'Patient', 100)}
 Status: No medical records uploaded yet.
-Instruction: Inform the patient that their MedLens profile is currently empty and encourage them to complete intake or upload diagnostic reports.`;
+Instruction: You must inform the user that no medical records have been uploaded to their MedLens account yet. State: "No medical records have been uploaded to your MedLens account yet. You can upload a medical report or complete patient intake to build your structured clinical record, and I will be able to synthesize and explain your lab results and clinical parameters." If they ask general health definitions, answer neutrally and non-diagnostically without referencing non-existent records.`;
     } else {
       const reportsSummary = (patientContext.reports || [])
         .slice(0, 5)
@@ -399,15 +529,11 @@ UNRESOLVED CONFLICTS:
 ${conflictsSummary}`;
     }
 
-    // Limit conversation history to the most recent 4 messages to preserve speed and token budget
     const recentHistory = conversationHistory.slice(-4);
     const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
-
-    // Contain untrusted clinical context strictly within XML boundaries to prevent prompt overrides
     const wrappedContext = `<clinical_evidence_boundary>\n[UNTRUSTED CLINICAL DATA RECORD]\n${contextPrompt}\n</clinical_evidence_boundary>`;
 
     if (recentHistory.length > 0) {
-      // First turn pairs patient clinical context with first message
       const firstMsg = recentHistory[0];
       contents.push({
         role: firstMsg.sender === 'user' ? 'user' : 'model',
@@ -422,28 +548,98 @@ ${conflictsSummary}`;
         });
       }
 
-      // Add current user prompt
       contents.push({
         role: 'user',
         parts: [{ text: `<user_inquiry>\n${cleanMessage}\n</user_inquiry>` }]
       });
     } else {
-      // First single turn
       contents.push({
         role: 'user',
         parts: [{ text: `${wrappedContext}\n\n<user_inquiry>\n${cleanMessage}\n</user_inquiry>` }]
       });
     }
 
-    // Call persistent Gemini 3.8 Flash Client
     const client = getGeminiClient();
+    const shouldStream = stream !== false && (req.headers.accept?.includes('text/event-stream') || stream === true);
+
+    if (shouldStream) {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no'
+      });
+
+      let firstChunkTime = 0;
+      let accumulatedText = '';
+
+      try {
+        const streamResult = await client.streamGenerateContent(
+          contents,
+          SYSTEM_INSTRUCTION,
+          (chunkText) => {
+            if (!firstChunkTime) {
+              firstChunkTime = Date.now();
+            }
+            accumulatedText += chunkText;
+            res.write(`data: ${JSON.stringify({ type: 'chunk', text: chunkText })}\n\n`);
+            if (typeof res.flush === 'function') res.flush();
+          }
+        );
+
+        const relevantSources: SourceItem[] = [];
+        if (patientContext?.labs) {
+          for (const lab of patientContext.labs) {
+            const lowerRes = accumulatedText.toLowerCase();
+            if (
+              lowerRes.includes(lab.testName.toLowerCase()) || 
+              (lab.originalTerm && lowerRes.includes(lab.originalTerm.toLowerCase()))
+            ) {
+              if (!relevantSources.some(s => s.testName === lab.testName)) {
+                relevantSources.push({
+                  sourceName: lab.source,
+                  testName: lab.testName,
+                  value: `${lab.value} ${lab.unit}`,
+                  refRange: lab.refRange ? `${lab.refRange} ${lab.unit}` : 'Not provided in source',
+                  status: lab.status
+                });
+              }
+            }
+          }
+        }
+
+        const ttftMs = firstChunkTime ? firstChunkTime - startTime : 0;
+        const totalMs = Date.now() - startTime;
+        console.info(`[api/chat] Stream complete (${streamResult.modelUsed}) | TTFT: ${ttftMs}ms | Total: ${totalMs}ms`);
+
+        res.write(`data: ${JSON.stringify({
+          type: 'done',
+          text: accumulatedText,
+          sources: relevantSources.slice(0, 4),
+          modelUsed: streamResult.modelUsed,
+          metrics: { ttftMs, totalMs }
+        })}\n\n`);
+        res.end();
+        return;
+      } catch (streamErr: any) {
+        console.error(`[api/chat] Stream error after ${Date.now() - startTime}ms:`, streamErr?.message || 'Error');
+        res.write(`data: ${JSON.stringify({
+          type: 'error',
+          error: 'Model capacity temporarily busy',
+          text: 'MedLens AI is temporarily busy. Please try again.'
+        })}\n\n`);
+        res.end();
+        return;
+      }
+    }
+
+    // Non-streaming JSON fallback
     const { text: candidateText, modelUsed } = await client.generateContent(
       contents,
       SYSTEM_INSTRUCTION,
       2
     );
 
-    // Extract relevant source citations based on the response content and patient labs
     const relevantSources: SourceItem[] = [];
     if (patientContext?.labs) {
       for (const lab of patientContext.labs) {
@@ -465,18 +661,25 @@ ${conflictsSummary}`;
       }
     }
 
+    const totalMs = Date.now() - startTime;
+    console.info(`[api/chat] JSON complete (${modelUsed}) | Total: ${totalMs}ms`);
+
     res.status(200).json({
       text: candidateText,
-      sources: relevantSources.slice(0, 4), // Cap at top 4 relevant source tags
+      sources: relevantSources.slice(0, 4),
       modelUsed,
       isDemo: Boolean(isDemo),
+      metrics: { totalMs },
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     });
   } catch (err: any) {
-    console.error('[api/chat] Error processing question:', err);
-    res.status(500).json({
-      error: err?.message || 'Internal server error processing clinical question.',
-      text: 'MedLens AI encountered a temporary issue while communicating with the generative model. Your medical records remain intact and secure.'
+    const is503 = err?.message?.includes('503') || err?.message?.includes('capacity');
+    console.error(`[api/chat] Error after ${Date.now() - startTime}ms:`, err?.message || 'Unknown error');
+    res.status(is503 ? 503 : 500).json({
+      error: is503 ? 'MODEL_CAPACITY_TEMPORARY' : 'INTERNAL_ERROR',
+      text: is503
+        ? 'MedLens AI is temporarily busy. Please try again.'
+        : 'MedLens AI is temporarily unavailable. Your medical record is still available.'
     });
   }
 }

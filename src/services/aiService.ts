@@ -181,10 +181,164 @@ export function buildStructuredPatientContext(
   };
 }
 
+export interface StreamCallbacks {
+  onChunk: (accumulatedText: string, delta: string) => void;
+  onDone?: (message: ChatMessage) => void;
+  onError?: (errorText: string) => void;
+}
+
 /**
- * Dispatches the user question and structured patient context to the secure backend endpoint /api/chat.
- * Employs Gemini 3.8 Flash server-side without exposing API keys to the browser.
- * Includes automatic client-side retry to smoothly overcome Vercel/Google cold starts.
+ * Dispatches the user question and structured patient context to /api/chat with progressive SSE streaming.
+ * Measures Time-To-First-Token (TTFT) and total duration, updating the UI progressively.
+ */
+export async function sendStreamingChatMessageToAI(
+  message: string,
+  conversationHistory: Array<{ sender: 'user' | 'assistant'; text: string }>,
+  patientContext: StructuredPatientContext,
+  role: 'patient' | 'doctor' = 'patient',
+  callbacks?: StreamCallbacks,
+  signal?: AbortSignal
+): Promise<ChatMessage> {
+  const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  // Await auth state restoration to prevent cold-start race conditions
+  let idToken: string | undefined;
+  try {
+    if (!auth.currentUser && typeof auth.authStateReady === 'function') {
+      await auth.authStateReady();
+    }
+    if (auth.currentUser) {
+      idToken = await auth.currentUser.getIdToken(false);
+    }
+  } catch (err) {
+    console.warn('[aiService] Auth token retrieval warning:', err);
+  }
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Accept': 'text/event-stream'
+  };
+  if (idToken) {
+    headers['Authorization'] = `Bearer ${idToken}`;
+  }
+
+  const payload = {
+    message,
+    conversationHistory,
+    patientContext,
+    role,
+    stream: true
+  };
+
+  const startTime = Date.now();
+  let firstChunkTime = 0;
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      signal
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      const fallbackText = res.status === 503 || errData.code === 'MODEL_CAPACITY_TEMPORARY'
+        ? 'MedLens AI is temporarily busy. Please try again.'
+        : (errData.text || 'MedLens AI is temporarily unavailable. Your medical record is still available.');
+
+      return {
+        id: `bot-${Date.now()}`,
+        sender: 'assistant',
+        text: fallbackText,
+        timestamp
+      };
+    }
+
+    if (!res.body) {
+      throw new Error('Response body missing from /api/chat stream');
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let accumulatedText = '';
+    let lineBuffer = '';
+    let sources: any[] = [];
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      lineBuffer += decoder.decode(value, { stream: true });
+      const lines = lineBuffer.split('\n');
+      lineBuffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('data:')) {
+          const jsonStr = trimmed.slice(5).trim();
+          if (jsonStr) {
+            try {
+              const data = JSON.parse(jsonStr);
+              if (data.type === 'chunk' && data.text) {
+                if (!firstChunkTime) {
+                  firstChunkTime = Date.now();
+                  const ttft = firstChunkTime - startTime;
+                  console.info(`[aiService] Time-to-first-token (TTFT): ${ttft}ms`);
+                }
+                accumulatedText += data.text;
+                callbacks?.onChunk(accumulatedText, data.text);
+              } else if (data.type === 'done') {
+                if (data.sources) sources = data.sources;
+                if (data.text && !accumulatedText) accumulatedText = data.text;
+              } else if (data.type === 'error') {
+                throw new Error(data.text || 'MedLens AI is temporarily busy. Please try again.');
+              }
+            } catch (parseErr: any) {
+              if (parseErr.message && !parseErr.message.includes('JSON')) {
+                throw parseErr;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    const totalDuration = Date.now() - startTime;
+    console.info(`[aiService] Total streaming duration: ${totalDuration}ms | Length: ${accumulatedText.length} chars`);
+
+    const resultMessage: ChatMessage = {
+      id: `bot-${Date.now()}`,
+      sender: 'assistant',
+      text: accumulatedText || 'MedLens AI processed your clinical inquiry.',
+      sources,
+      timestamp
+    };
+
+    callbacks?.onDone?.(resultMessage);
+    return resultMessage;
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      console.info('[aiService] Request was cancelled by user.');
+      throw err;
+    }
+    console.error('[aiService] Streaming error:', err);
+    const isBusy = err?.message?.includes('busy') || err?.message?.includes('capacity');
+    const resultMessage: ChatMessage = {
+      id: `bot-${Date.now()}`,
+      sender: 'assistant',
+      text: isBusy
+        ? 'MedLens AI is temporarily busy. Please try again.'
+        : 'MedLens AI is temporarily unavailable. Your medical record is still available.',
+      timestamp
+    };
+    callbacks?.onError?.(resultMessage.text);
+    return resultMessage;
+  }
+}
+
+/**
+ * Non-streaming dispatch to /api/chat.
  */
 export async function sendChatMessageToAI(
   message: string,
@@ -195,12 +349,17 @@ export async function sendChatMessageToAI(
 ): Promise<ChatMessage> {
   const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  // Retrieve Firebase ID token if user is authenticated (from in-memory cache)
+  // Await auth state restoration to prevent cold-start race conditions
   let idToken: string | undefined;
   try {
-    idToken = auth.currentUser ? await auth.currentUser.getIdToken(false) : undefined;
-  } catch {
-    // Optional for demo mode or offline testing
+    if (!auth.currentUser && typeof auth.authStateReady === 'function') {
+      await auth.authStateReady();
+    }
+    if (auth.currentUser) {
+      idToken = await auth.currentUser.getIdToken(false);
+    }
+  } catch (err) {
+    console.warn('[aiService] Auth token retrieval warning:', err);
   }
 
   const headers: Record<string, string> = {
@@ -215,59 +374,27 @@ export async function sendChatMessageToAI(
     conversationHistory,
     patientContext,
     isDemo,
-    role
+    role,
+    stream: false
   };
 
-  /**
-   * Fast internal executor with single safe retry for transient network / cold start errors
-   */
-  async function executeRequest(attempt: number = 0): Promise<Response> {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s network timeout
-
-    try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-
-      // Fast single retry for transient cold-start gateway error (502/503/504)
-      if ([502, 503, 504].includes(res.status) && attempt === 0) {
-        console.warn(`[aiService] /api/chat returned status ${res.status}. Retrying in 300ms...`);
-        await new Promise(resolve => setTimeout(resolve, 300));
-        return executeRequest(1);
-      }
-
-      return res;
-    } catch (err: any) {
-      clearTimeout(timeoutId);
-      // Fast single retry if network aborted or dropped
-      if (attempt === 0) {
-        console.warn(`[aiService] /api/chat network error (${err?.message || err}). Retrying in 300ms...`);
-        await new Promise(resolve => setTimeout(resolve, 300));
-        return executeRequest(1);
-      }
-      throw err;
-    }
-  }
-
   try {
-    const res = await executeRequest(0);
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload)
+    });
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
-      if (res.status === 503 || errData.code === 'API_KEY_NOT_CONFIGURED') {
-        return {
-          id: `bot-${Date.now()}`,
-          sender: 'assistant',
-          text: errData.text || 'MedLens AI is temporarily unavailable because the server GEMINI_API_KEY is not configured in Vercel Project Settings. Your medical records remain intact and accessible.',
-          timestamp
-        };
-      }
-      throw new Error(errData.error || `Server responded with status ${res.status}`);
+      return {
+        id: `bot-${Date.now()}`,
+        sender: 'assistant',
+        text: res.status === 503 
+          ? 'MedLens AI is temporarily busy. Please try again.'
+          : (errData.text || 'MedLens AI is temporarily unavailable. Your medical record is still available.'),
+        timestamp
+      };
     }
 
     const data = await res.json();
@@ -280,13 +407,10 @@ export async function sendChatMessageToAI(
     };
   } catch (err: any) {
     console.error('Chat AI request error:', err);
-    const isTimeout = err?.name === 'AbortError';
     return {
       id: `bot-${Date.now()}`,
       sender: 'assistant',
-      text: isTimeout 
-        ? 'MedLens AI request timed out during initialization. Please check your connection and click Retry.' 
-        : 'MedLens AI is temporarily unavailable. Your saved medical record is still available.',
+      text: 'MedLens AI is temporarily unavailable. Your medical record is still available.',
       timestamp
     };
   }

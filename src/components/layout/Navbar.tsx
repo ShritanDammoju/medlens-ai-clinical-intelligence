@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { usePatient } from '../../context/PatientContext';
 import { useAuth } from '../../firebase/AuthContext';
 import { 
@@ -7,15 +7,16 @@ import {
   Printer, 
   Activity, 
   ChevronDown, 
-  Menu,
-  Shield,
-  LogIn,
-  LogOut,
-  Stethoscope,
-  User,
-  Copy,
-  Check,
-  Sparkles
+  Menu, 
+  Shield, 
+  LogIn, 
+  LogOut, 
+  User, 
+  Settings, 
+  Copy, 
+  Check, 
+  Sparkles,
+  Stethoscope
 } from 'lucide-react';
 import { NavTab } from './Sidebar';
 
@@ -46,6 +47,19 @@ export const Navbar: React.FC<Props> = ({
 
   const { userProfile, role, openAuthModal, logout } = useAuth();
   const [copiedCode, setCopiedCode] = useState(false);
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setProfileDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleCopyCode = () => {
     if (userProfile?.doctorCode) {
@@ -124,9 +138,7 @@ export const Navbar: React.FC<Props> = ({
             </button>
           )}
 
-
-
-          {/* Patient Selector (when multiple patients exist in clinician view) */}
+          {/* Patient Selector (when reviewing external patient) */}
           {state.patients.length > 1 && (
             <div className="relative">
               <select
@@ -163,23 +175,89 @@ export const Navbar: React.FC<Props> = ({
             <span className="hidden md:inline">Export</span>
           </button>
 
-          {/* Sign In / Sign Out */}
+          {/* User Profile Dropdown Menu */}
           {userProfile ? (
-            <div className="flex items-center gap-2 pl-1 border-l border-slate-200">
-              <div className="hidden xl:flex flex-col text-right">
-                <span className="text-xs font-bold text-slate-800 truncate max-w-[130px]">
-                  {userProfile.displayName}
-                </span>
-                <span className="text-[10px] text-slate-400 capitalize">{userProfile.role}</span>
-              </div>
-
+            <div className="relative" ref={dropdownRef}>
               <button
-                onClick={() => logout()}
-                title="Sign Out of MedLens"
-                className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
+                className="flex items-center gap-2 p-1 sm:px-2.5 sm:py-1 rounded-xl hover:bg-slate-100 transition-colors border border-transparent hover:border-slate-200 cursor-pointer"
+                aria-label="User profile menu"
               >
-                <LogOut className="w-4 h-4" />
+                {userProfile.photoURL ? (
+                  <img
+                    src={userProfile.photoURL}
+                    alt={userProfile.displayName || 'Avatar'}
+                    className="w-8 h-8 rounded-lg object-cover border border-slate-200"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-lg bg-sky-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                    {(userProfile.displayName || 'U').charAt(0).toUpperCase()}
+                  </div>
+                )}
+
+                <div className="hidden lg:flex flex-col text-left">
+                  <span className="text-xs font-bold text-slate-800 truncate max-w-[110px] leading-tight">
+                    {userProfile.displayName?.split(' ')[0] || 'User'}
+                  </span>
+                  <span className="text-[10px] text-slate-400 capitalize leading-none">
+                    {userProfile.role}
+                  </span>
+                </div>
+
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />
               </button>
+
+              {/* Dropdown Menu */}
+              {profileDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in duration-150">
+                  <div className="px-4 py-2.5 border-b border-slate-100">
+                    <p className="text-xs font-bold text-slate-900 truncate">{userProfile.displayName}</p>
+                    <p className="text-[11px] text-slate-400 truncate">{userProfile.email}</p>
+                    <span className={`inline-block mt-1 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${
+                      role === 'doctor' 
+                        ? 'bg-sky-50 text-sky-700 border-sky-200' 
+                        : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    }`}>
+                      {role === 'doctor' ? 'Clinician' : 'Patient'}
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setProfileDropdownOpen(false);
+                      onNavigateTab?.('profile');
+                    }}
+                    className="w-full px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <User className="w-4 h-4 text-sky-600" />
+                    <span>My Profile</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setProfileDropdownOpen(false);
+                      onNavigateTab?.('settings');
+                    }}
+                    className="w-full px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <Settings className="w-4 h-4 text-slate-500" />
+                    <span>Settings & Security</span>
+                  </button>
+
+                  <div className="my-1 border-t border-slate-100" />
+
+                  <button
+                    onClick={() => {
+                      setProfileDropdownOpen(false);
+                      logout();
+                    }}
+                    className="w-full px-4 py-2 text-xs text-rose-600 hover:bg-rose-50 flex items-center gap-2.5 transition-colors cursor-pointer font-semibold"
+                  >
+                    <LogOut className="w-4 h-4 text-rose-600" />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <button

@@ -18,7 +18,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { ChatMessage } from '../../types/medical';
-import { sendChatMessageToAI, buildStructuredPatientContext } from '../../services/aiService';
+import { sendStreamingChatMessageToAI, buildStructuredPatientContext } from '../../services/aiService';
 
 export const MedLensChatbot: React.FC = () => {
   const { currentPatient, state, openSourceInspector } = usePatient();
@@ -27,7 +27,9 @@ export const MedLensChatbot: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [streamingText, setStreamingText] = useState<string | null>(null);
   const [lastErrorQuery, setLastErrorQuery] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const initialWelcomeMessage: ChatMessage = {
     id: 'msg-welcome',
@@ -44,7 +46,17 @@ export const MedLensChatbot: React.FC = () => {
     if (isOpen) {
       chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, isTyping, isOpen]);
+  }, [messages, isTyping, streamingText, isOpen]);
+
+  // Cancel in-flight request when user closes chat
+  useEffect(() => {
+    if (!isOpen && abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsTyping(false);
+      setStreamingText(null);
+    }
+  }, [isOpen]);
 
   const quickQuestions = [
     "What reports do I have?",
@@ -56,13 +68,26 @@ export const MedLensChatbot: React.FC = () => {
   ];
 
   const handleClearChat = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
     setMessages([initialWelcomeMessage]);
     setLastErrorQuery(null);
+    setIsTyping(false);
+    setStreamingText(null);
   };
 
   const handleSend = async (textToSend?: string) => {
     const query = (textToSend || input).trim();
-    if (!query || isTyping) return;
+    if (!query) return;
+
+    // Cancel existing active request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
@@ -74,6 +99,7 @@ export const MedLensChatbot: React.FC = () => {
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setIsTyping(true);
+    setStreamingText(null);
     setLastErrorQuery(null);
 
     // Build compact, query-relevant structured patient context
@@ -88,7 +114,7 @@ export const MedLensChatbot: React.FC = () => {
       query
     );
 
-    // Prepare compact recent conversation history (last 4 turns, with text capped)
+    // Prepare compact recent conversation history
     const history = messages
       .filter(m => m.id !== 'msg-welcome')
       .slice(-4)
@@ -98,34 +124,47 @@ export const MedLensChatbot: React.FC = () => {
       }));
 
     try {
-      const botResponse = await sendChatMessageToAI(
+      const botResponse = await sendStreamingChatMessageToAI(
         query,
         history,
         patientContext,
-        false,
-        role
+        role,
+        {
+          onChunk: (accumulated) => {
+            setStreamingText(accumulated);
+          }
+        },
+        abortController.signal
       );
 
       setMessages(prev => [...prev, botResponse]);
+      setStreamingText(null);
 
-      // Check if response was an error message to offer retry
-      if (botResponse.text.includes('temporarily unavailable') || botResponse.text.includes('timed out')) {
+      if (botResponse.text.includes('temporarily unavailable') || botResponse.text.includes('temporarily busy') || botResponse.text.includes('timed out')) {
         setLastErrorQuery(query);
       }
     } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        return;
+      }
       console.error('Chat error:', err);
       setLastErrorQuery(query);
+      setStreamingText(null);
       setMessages(prev => [
         ...prev,
         {
           id: `bot-err-${Date.now()}`,
           sender: 'assistant',
-          text: 'MedLens AI encountered an unexpected issue formulating a response. Please check your connection and click Retry.',
+          text: 'MedLens AI is temporarily unavailable. Your medical record is still available.',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
       ]);
     } finally {
       setIsTyping(false);
+      setStreamingText(null);
+      if (abortControllerRef.current === abortController) {
+        abortControllerRef.current = null;
+      }
     }
   };
 
@@ -269,8 +308,21 @@ export const MedLensChatbot: React.FC = () => {
               </div>
             ))}
 
-            {/* Immediate Thinking state */}
-            {isTyping && (
+            {/* Live Streaming Message */}
+            {isTyping && streamingText && (
+              <div className="flex gap-2.5 items-start animate-in fade-in duration-150">
+                <div className="w-7 h-7 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs shadow-xs">
+                  <Bot className="w-4 h-4" />
+                </div>
+                <div className="bg-white border border-sky-200 text-slate-800 rounded-2xl rounded-bl-xs p-3.5 shadow-xs max-w-[85%] space-y-1">
+                  <p className="whitespace-pre-wrap leading-relaxed">{streamingText}</p>
+                  <span className="inline-block w-1.5 h-3.5 bg-sky-600 animate-pulse ml-0.5 align-middle" />
+                </div>
+              </div>
+            )}
+
+            {/* Immediate Initial Review State */}
+            {isTyping && !streamingText && (
               <div className="flex gap-2.5 items-start animate-in fade-in duration-150">
                 <div className="w-7 h-7 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center shrink-0 mt-0.5 font-bold text-xs shadow-xs">
                   <Bot className="w-4 h-4" />
@@ -278,11 +330,8 @@ export const MedLensChatbot: React.FC = () => {
                 <div className="bg-white border border-sky-200 text-slate-800 rounded-2xl rounded-bl-xs p-3.5 shadow-xs max-w-[85%] space-y-1">
                   <div className="flex items-center gap-2 text-sky-700 font-bold text-xs">
                     <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-600 shrink-0" />
-                    <span className="tracking-wide">Thinking...</span>
+                    <span className="tracking-wide">MedLens AI is reviewing your authorized clinical information...</span>
                   </div>
-                  <p className="text-slate-500 text-[11px] leading-relaxed">
-                    Analyzing clinical records with Gemini 3.8 Flash...
-                  </p>
                 </div>
               </div>
             )}
@@ -290,10 +339,10 @@ export const MedLensChatbot: React.FC = () => {
             {/* Retry Button if last query resulted in error */}
             {lastErrorQuery && !isTyping && (
               <div className="flex items-center justify-between p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
-                <span>The last request could not be fulfilled.</span>
+                <span>MedLens AI is temporarily unavailable. Your medical record is still available.</span>
                 <button
                   onClick={() => handleSend(lastErrorQuery)}
-                  className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                  className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold transition-colors flex items-center gap-1 cursor-pointer shrink-0 ml-2 shadow-xs"
                 >
                   <RefreshCw className="w-3 h-3" />
                   <span>Retry</span>

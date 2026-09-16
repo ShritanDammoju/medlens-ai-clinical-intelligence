@@ -11,7 +11,11 @@ import {
   UserPlus,
   Stethoscope,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Clock,
+  Bot,
+  ShieldCheck,
+  CheckCircle2
 } from 'lucide-react';
 import { StatCard } from '../components/dashboard/StatCard';
 import { LabTrendChart } from '../components/dashboard/LabTrendChart';
@@ -85,7 +89,7 @@ export const DashboardPage: React.FC<Props> = ({ onNavigateTab, onOpenUpload, on
             </h1>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Patient: <strong className="text-slate-800">{displayName}</strong> • {currentPatient?.age || 32} years • {currentPatient?.sex || 'Female'} • ID: <code className="text-xs font-mono">{currentPatient?.id?.substring(0, 12)}...</code>
+            Patient: <strong className="text-slate-800">{displayName}</strong> • {currentPatient?.age || 30} years • {currentPatient?.sex || 'Female'} • ID: <code className="text-xs font-mono">{currentPatient?.id?.substring(0, 12)}...</code>
           </p>
         </div>
 
@@ -110,7 +114,7 @@ export const DashboardPage: React.FC<Props> = ({ onNavigateTab, onOpenUpload, on
         </div>
       </div>
 
-      {/* Real Account Empty State Onboarding: 5-Step Clinical Workflow */}
+      {/* Real Account Empty State Onboarding */}
       {isAccountEmpty && (
         <div className="bg-gradient-to-r from-sky-900 via-slate-900 to-sky-950 rounded-3xl p-6 sm:p-8 text-white space-y-6 shadow-xl border border-sky-800/40">
           <div className="space-y-2">
@@ -122,96 +126,156 @@ export const DashboardPage: React.FC<Props> = ({ onNavigateTab, onOpenUpload, on
               No medical reports yet. Upload your first report to begin building your structured clinical record.
             </h2>
             <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-              MedLens unifies fragmented diagnostic reports into an organized, reference-range-verified patient record. Follow these steps to build your baseline:
+              MedLens unifies fragmented diagnostic reports into an organized, reference-range-verified patient record.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2">
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/15 space-y-3 flex flex-col justify-between">
-              <div>
-                <span className="text-[10px] font-mono font-bold text-sky-400 uppercase tracking-wider">Step 1</span>
-                <h3 className="text-sm font-extrabold text-white mt-0.5">Profile & Intake</h3>
-                <p className="text-[11px] text-slate-300 mt-1">
-                  Document baseline symptoms, allergies, and active medications.
-                </p>
-              </div>
-              <button
-                onClick={() => onOpenIntake ? onOpenIntake() : onNavigateTab('patients')}
-                className="w-full py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer"
-              >
-                <span>Start Intake</span>
-                <ArrowRight className="w-3 h-3" />
-              </button>
-            </div>
-
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/15 space-y-3 flex flex-col justify-between">
-              <div>
-                <span className="text-[10px] font-mono font-bold text-sky-400 uppercase tracking-wider">Step 2</span>
-                <h3 className="text-sm font-extrabold text-white mt-0.5">Upload Report</h3>
-                <p className="text-[11px] text-slate-300 mt-1">
-                  Upload PDF, PNG, JPG, or paste text to run the 10-stage OCR engine.
-                </p>
-              </div>
-              <button
-                onClick={onOpenUpload}
-                className="w-full py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-900 text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer"
-              >
-                <Upload className="w-3 h-3" />
-                <span>Upload</span>
-              </button>
-            </div>
-
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/15 space-y-3 flex flex-col justify-between">
-              <div>
-                <span className="text-[10px] font-mono font-bold text-teal-400 uppercase tracking-wider">Step 3</span>
-                <h3 className="text-sm font-extrabold text-white mt-0.5">Review Extraction</h3>
-                <p className="text-[11px] text-slate-300 mt-1">
-                  Inspect extracted lab tests, units, and source-printed reference ranges.
-                </p>
-              </div>
-              <button
-                onClick={() => onNavigateTab('labs')}
-                className="w-full py-2 rounded-xl bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-400/30 text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer"
-              >
-                <span>Inspect Labs</span>
-              </button>
-            </div>
-
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/15 space-y-3 flex flex-col justify-between">
-              <div>
-                <span className="text-[10px] font-mono font-bold text-amber-400 uppercase tracking-wider">Step 4</span>
-                <h3 className="text-sm font-extrabold text-white mt-0.5">Verify Record</h3>
-                <p className="text-[11px] text-slate-300 mt-1">
-                  Confirm accuracy, resolve discrepancies, and verify observations.
-                </p>
-              </div>
-              <button
-                onClick={() => onNavigateTab('verification')}
-                className="w-full py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/30 text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer"
-              >
-                <span>Verify</span>
-              </button>
-            </div>
-
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/15 space-y-3 flex flex-col justify-between">
-              <div>
-                <span className="text-[10px] font-mono font-bold text-emerald-400 uppercase tracking-wider">Step 5</span>
-                <h3 className="text-sm font-extrabold text-white mt-0.5">Connect Doctor</h3>
-                <p className="text-[11px] text-slate-300 mt-1">
-                  Enter physician code (<code className="text-sky-300 font-mono">MED-XXXXXX</code>) to authorize review.
-                </p>
-              </div>
-              <button
-                onClick={() => onNavigateTab('settings')}
-                className="w-full py-2 rounded-xl border border-white/30 hover:bg-white/10 text-white text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer"
-              >
-                <Stethoscope className="w-3 h-3" />
-                <span>Doctor Access</span>
-              </button>
-            </div>
+          <div className="pt-2">
+            <button
+              onClick={onOpenUpload}
+              className="px-6 py-3 rounded-2xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-sm font-extrabold shadow-lg transition-all flex items-center gap-2 cursor-pointer"
+            >
+              <Upload className="w-4 h-4" />
+              <span>Upload Your First Diagnostic Report</span>
+            </button>
           </div>
         </div>
       )}
+
+      {/* Role-Aware Patient Recommendations (6 Recommended Next Steps) */}
+      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xs p-6 space-y-4">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-sky-600" />
+            <div>
+              <h2 className="text-base font-extrabold text-slate-900">Recommended Next Steps</h2>
+              <p className="text-xs text-slate-500">Actions to maintain a comprehensive and verified health record</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+          {/* Action 1 */}
+          <div className="p-4 rounded-2xl bg-slate-50 hover:bg-sky-50/50 border border-slate-200/70 transition-all flex flex-col justify-between space-y-3">
+            <div>
+              <div className="flex items-center gap-2 text-sky-700 font-bold text-xs mb-1">
+                <UserPlus className="w-4 h-4" />
+                <span>1. Complete Clinical Intake</span>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Document your baseline symptoms, existing conditions, known allergies, and active medications.
+              </p>
+            </div>
+            <button
+              onClick={() => onOpenIntake ? onOpenIntake() : onNavigateTab('profile')}
+              className="w-full py-1.5 px-3 rounded-xl bg-white border border-slate-200 hover:border-sky-300 text-slate-800 text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <span>{userProfile?.onboardingCompleted ? 'Update Profile' : 'Start Intake'}</span>
+              <ArrowRight className="w-3.5 h-3.5 text-sky-600" />
+            </button>
+          </div>
+
+          {/* Action 2 */}
+          <div className="p-4 rounded-2xl bg-slate-50 hover:bg-sky-50/50 border border-slate-200/70 transition-all flex flex-col justify-between space-y-3">
+            <div>
+              <div className="flex items-center gap-2 text-sky-700 font-bold text-xs mb-1">
+                <Upload className="w-4 h-4" />
+                <span>2. Upload Medical Report</span>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Add PDF lab results, imaging summaries, or clinical letters to extract structured biomarkers.
+              </p>
+            </div>
+            <button
+              onClick={onOpenUpload}
+              className="w-full py-1.5 px-3 rounded-xl bg-white border border-slate-200 hover:border-sky-300 text-slate-800 text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <span>Upload Document</span>
+              <ArrowRight className="w-3.5 h-3.5 text-sky-600" />
+            </button>
+          </div>
+
+          {/* Action 3 */}
+          <div className="p-4 rounded-2xl bg-slate-50 hover:bg-sky-50/50 border border-slate-200/70 transition-all flex flex-col justify-between space-y-3">
+            <div>
+              <div className="flex items-center gap-2 text-sky-700 font-bold text-xs mb-1">
+                <FlaskConical className="w-4 h-4" />
+                <span>3. Review Extracted Biomarkers</span>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Inspect extracted test parameters, units, and laboratory-printed reference ranges.
+              </p>
+            </div>
+            <button
+              onClick={() => onNavigateTab('labs')}
+              className="w-full py-1.5 px-3 rounded-xl bg-white border border-slate-200 hover:border-sky-300 text-slate-800 text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <span>View Lab Results</span>
+              <ArrowRight className="w-3.5 h-3.5 text-sky-600" />
+            </button>
+          </div>
+
+          {/* Action 4 */}
+          <div className="p-4 rounded-2xl bg-slate-50 hover:bg-sky-50/50 border border-slate-200/70 transition-all flex flex-col justify-between space-y-3">
+            <div>
+              <div className="flex items-center gap-2 text-sky-700 font-bold text-xs mb-1">
+                <Stethoscope className="w-4 h-4" />
+                <span>4. Connect with your Doctor</span>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Enter your physician's Doctor Code to authorize secure clinical record review.
+              </p>
+            </div>
+            <button
+              onClick={() => onNavigateTab('settings')}
+              className="w-full py-1.5 px-3 rounded-xl bg-white border border-slate-200 hover:border-sky-300 text-slate-800 text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <span>Enter Doctor Code</span>
+              <ArrowRight className="w-3.5 h-3.5 text-sky-600" />
+            </button>
+          </div>
+
+          {/* Action 5 */}
+          <div className="p-4 rounded-2xl bg-slate-50 hover:bg-sky-50/50 border border-slate-200/70 transition-all flex flex-col justify-between space-y-3">
+            <div>
+              <div className="flex items-center gap-2 text-sky-700 font-bold text-xs mb-1">
+                <Clock className="w-4 h-4" />
+                <span>5. Review Health Timeline</span>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Track chronological changes, diagnostic dates, and medication history in a unified stream.
+              </p>
+            </div>
+            <button
+              onClick={() => onNavigateTab('timeline')}
+              className="w-full py-1.5 px-3 rounded-xl bg-white border border-slate-200 hover:border-sky-300 text-slate-800 text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <span>Open Timeline</span>
+              <ArrowRight className="w-3.5 h-3.5 text-sky-600" />
+            </button>
+          </div>
+
+          {/* Action 6 */}
+          <div className="p-4 rounded-2xl bg-slate-50 hover:bg-sky-50/50 border border-slate-200/70 transition-all flex flex-col justify-between space-y-3">
+            <div>
+              <div className="flex items-center gap-2 text-sky-700 font-bold text-xs mb-1">
+                <Bot className="w-4 h-4" />
+                <span>6. Ask MedLens Assistant</span>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Use Gemini 3.8 Flash to synthesize reports, explain terminology, and reference source documents.
+              </p>
+            </div>
+            <button
+              onClick={() => onNavigateTab('insights')}
+              className="w-full py-1.5 px-3 rounded-xl bg-white border border-slate-200 hover:border-sky-300 text-slate-800 text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <span>Explore AI Insights</span>
+              <ArrowRight className="w-3.5 h-3.5 text-sky-600" />
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* 4 Top KPI Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
@@ -280,7 +344,7 @@ export const DashboardPage: React.FC<Props> = ({ onNavigateTab, onOpenUpload, on
         />
       </div>
 
-      {/* Connected Clinicians Card for sovereign patient access management */}
+      {/* Connected Clinicians Card */}
       <ConnectedDoctorsCard />
     </div>
   );

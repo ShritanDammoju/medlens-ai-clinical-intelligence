@@ -29,6 +29,7 @@ interface AuthContextType {
   closeAuthModal: () => void;
   loginWithGoogle: (role: UserRole) => Promise<void>;
   logout: () => Promise<void>;
+  updateUserProfileState: (updated: Partial<UserProfile>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -89,6 +90,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateUserProfileState = async (updated: Partial<UserProfile>) => {
+    if (!userProfile) return;
+    const merged: UserProfile = {
+      ...userProfile,
+      ...updated
+    };
+    setUserProfile(merged);
+    saveStoredProfile(merged);
+    try {
+      await saveUserProfileToFirestore(merged);
+    } catch (err) {
+      console.warn('Failed to sync profile updates to Firestore:', err);
+    }
+  };
+
   const logout = async () => {
     setAuthLoading(true);
     try {
@@ -113,7 +129,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         openAuthModal,
         closeAuthModal,
         loginWithGoogle,
-        logout
+        logout,
+        updateUserProfileState
       }}
     >
       {children}

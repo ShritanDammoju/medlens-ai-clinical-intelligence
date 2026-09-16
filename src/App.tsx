@@ -7,6 +7,7 @@ import { ReportsPage } from './pages/ReportsPage';
 import { MedicationsPage } from './pages/MedicationsPage';
 import { LabResultsPage } from './pages/LabResultsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { ProfilePage } from './pages/ProfilePage';
 import { StructuredPatientRecord } from './components/records/StructuredPatientRecord';
 import { VerificationCenter } from './components/verification/VerificationCenter';
 import { AIInsightsView } from './components/insights/AIInsightsView';
@@ -20,6 +21,8 @@ import { SafetyBanner } from './components/common/SafetyBanner';
 import { SourceModal } from './components/common/SourceModal';
 import { ReportUploadModal } from './components/reports/ReportUploadModal';
 import { PatientIntakeModal } from './components/intake/PatientIntakeModal';
+import { PatientOnboardingModal } from './components/onboarding/PatientOnboardingModal';
+import { DoctorOnboardingModal } from './components/onboarding/DoctorOnboardingModal';
 import { MedLensChatbot } from './components/chat/MedLensChatbot';
 import { AuthModal } from './components/auth/AuthModal';
 
@@ -34,14 +37,33 @@ const AppContent: React.FC = () => {
     return role === 'doctor' ? 'doctor_portal' : 'overview';
   });
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('medlens_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isIntakeOpen, setIsIntakeOpen] = useState(false);
+
+  const handleToggleSidebarCollapse = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('medlens_sidebar_collapsed', String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
 
   // Automatically switch between landing and authenticated app based on session
   React.useEffect(() => {
     if (userProfile) {
       setViewMode('app');
-      if (role === 'doctor' && !isReviewingExternalPatient) {
+      if (role === 'doctor' && !isReviewingExternalPatient && currentTab !== 'profile' && currentTab !== 'settings') {
         setCurrentTab('doctor_portal');
       }
     } else {
@@ -74,6 +96,10 @@ const AppContent: React.FC = () => {
   }
 
   const renderTabContent = () => {
+    if (currentTab === 'profile') {
+      return <ProfilePage />;
+    }
+
     // If doctor navigates to doctor portal
     if (currentTab === 'doctor_portal') {
       return <DoctorDashboard onNavigateTab={(tab) => setCurrentTab(tab)} />;
@@ -141,10 +167,12 @@ const AppContent: React.FC = () => {
           onSelectTab={(tab) => setCurrentTab(tab)}
           mobileOpen={mobileSidebarOpen}
           onCloseMobile={() => setMobileSidebarOpen(false)}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={handleToggleSidebarCollapse}
         />
 
         {/* Content Area with Offset for Sidebar */}
-        <div className="flex-1 flex flex-col lg:pl-64 min-w-0">
+        <div className={`flex-1 flex flex-col transition-all duration-300 ${isSidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'} min-w-0`}>
           {/* Top Sticky Navigation Bar */}
           <Navbar
             onOpenIntake={() => setIsIntakeOpen(true)}
@@ -171,6 +199,14 @@ const AppContent: React.FC = () => {
 
       {/* Global Floating AI Chatbot */}
       <MedLensChatbot />
+
+      {/* Mandatory Onboarding Modals */}
+      {userProfile && role === 'patient' && !userProfile.onboardingCompleted && (
+        <PatientOnboardingModal isOpen={true} />
+      )}
+      {userProfile && role === 'doctor' && !userProfile.onboardingCompleted && (
+        <DoctorOnboardingModal isOpen={true} />
+      )}
 
       {/* Global Modals */}
       <SourceModal />

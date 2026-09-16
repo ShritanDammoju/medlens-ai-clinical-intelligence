@@ -15,7 +15,11 @@ import {
   FileText, 
   AlertCircle,
   Search,
-  ExternalLink
+  ExternalLink,
+  Sparkles,
+  CheckCheck,
+  AlertTriangle,
+  ArrowRight
 } from 'lucide-react';
 import { NavTab } from '../layout/Sidebar';
 
@@ -38,7 +42,7 @@ export const DoctorDashboard: React.FC<Props> = ({ onNavigateTab }) => {
   const [searchPatient, setSearchPatient] = useState('');
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
-  const doctorCode = userProfile?.doctorCode || (userProfile?.uid ? `MED-${userProfile.uid.substring(0, 6).toUpperCase()}` : 'Generating...');
+  const doctorCode = userProfile?.doctorCode || (userProfile?.uid ? `MED-${userProfile.uid.substring(0, 6).toUpperCase()}` : 'MED-CODE');
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(doctorCode);
@@ -80,6 +84,7 @@ export const DoctorDashboard: React.FC<Props> = ({ onNavigateTab }) => {
   );
 
   const pendingLabsCount = state.labs.filter(l => l.verificationStatus === 'needs_review').length;
+  const conflictsCount = state.conflicts.filter(c => !c.resolved).length;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -95,7 +100,7 @@ export const DoctorDashboard: React.FC<Props> = ({ onNavigateTab }) => {
             <div>
               <div className="flex flex-wrap items-center gap-2.5">
                 <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-                  {userProfile?.displayName || 'Dr. Verified Clinician, MD'}
+                  {userProfile?.displayName || 'Dr. Clinician, MD'}
                 </h1>
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                   <ShieldCheck className="w-3.5 h-3.5" />
@@ -138,7 +143,7 @@ export const DoctorDashboard: React.FC<Props> = ({ onNavigateTab }) => {
               </button>
             </div>
             <p className="text-[11px] text-slate-300 mt-2 leading-relaxed">
-              Share this code with your patients. When they enter it in their MedLens dashboard, you can review and verify their medical records.
+              Share this code with your patients to review, verify, and document clinical records.
             </p>
           </div>
         </div>
@@ -177,8 +182,154 @@ export const DoctorDashboard: React.FC<Props> = ({ onNavigateTab }) => {
         </div>
       </div>
 
+      {/* Clinical Review Queue & Recommended Actions (5 Items) */}
+      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-xs p-6 space-y-4">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-sky-600" />
+            <div>
+              <h2 className="text-base font-extrabold text-slate-900">Clinical Review Queue & Recommended Actions</h2>
+              <p className="text-xs text-slate-500">Prioritized clinical workflow items requiring clinician verification</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+          {/* Action 1 */}
+          <div className="p-4 rounded-2xl bg-slate-50 hover:bg-sky-50/50 border border-slate-200/70 transition-all flex flex-col justify-between space-y-3">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="text-xs font-bold text-sky-800 flex items-center gap-1.5">
+                  <UserCheck className="w-4 h-4 text-sky-600" />
+                  1. Connection Requests
+                </span>
+                {pendingDoctorRequests.length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                    {pendingDoctorRequests.length} pending
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Review and approve patient requests to authorize clinical record inspection.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                const el = document.getElementById('pending-requests-section');
+                el?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="w-full py-1.5 px-3 rounded-xl bg-white border border-slate-200 hover:border-sky-300 text-slate-800 text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <span>Manage Requests</span>
+              <ArrowRight className="w-3.5 h-3.5 text-sky-600" />
+            </button>
+          </div>
+
+          {/* Action 2 */}
+          <div className="p-4 rounded-2xl bg-slate-50 hover:bg-sky-50/50 border border-slate-200/70 transition-all flex flex-col justify-between space-y-3">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="text-xs font-bold text-sky-800 flex items-center gap-1.5">
+                  <CheckCheck className="w-4 h-4 text-sky-600" />
+                  2. Records Requiring Review
+                </span>
+                {pendingLabsCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
+                    {pendingLabsCount} items
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Confirm extracted laboratory biomarkers and check reference range alignments.
+              </p>
+            </div>
+            <button
+              onClick={() => onNavigateTab('verification')}
+              className="w-full py-1.5 px-3 rounded-xl bg-white border border-slate-200 hover:border-sky-300 text-slate-800 text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <span>Open Verification Center</span>
+              <ArrowRight className="w-3.5 h-3.5 text-sky-600" />
+            </button>
+          </div>
+
+          {/* Action 3 */}
+          <div className="p-4 rounded-2xl bg-slate-50 hover:bg-sky-50/50 border border-slate-200/70 transition-all flex flex-col justify-between space-y-3">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="text-xs font-bold text-sky-800 flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-sky-600" />
+                  3. New Diagnostic Reports
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800">
+                  {state.reports.length} files
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Inspect raw source documents, OCR snippets, and extracted parameters.
+              </p>
+            </div>
+            <button
+              onClick={() => onNavigateTab('reports')}
+              className="w-full py-1.5 px-3 rounded-xl bg-white border border-slate-200 hover:border-sky-300 text-slate-800 text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <span>Inspect Reports</span>
+              <ArrowRight className="w-3.5 h-3.5 text-sky-600" />
+            </button>
+          </div>
+
+          {/* Action 4 */}
+          <div className="p-4 rounded-2xl bg-slate-50 hover:bg-sky-50/50 border border-slate-200/70 transition-all flex flex-col justify-between space-y-3">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="text-xs font-bold text-sky-800 flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4 text-amber-600" />
+                  4. Clinical Conflicts
+                </span>
+                {conflictsCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                    {conflictsCount} discrepancies
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Investigate discrepancies across disparate laboratory documents.
+              </p>
+            </div>
+            <button
+              onClick={() => onNavigateTab('insights')}
+              className="w-full py-1.5 px-3 rounded-xl bg-white border border-slate-200 hover:border-sky-300 text-slate-800 text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <span>Review Conflicts</span>
+              <ArrowRight className="w-3.5 h-3.5 text-sky-600" />
+            </button>
+          </div>
+
+          {/* Action 5 */}
+          <div className="p-4 rounded-2xl bg-slate-50 hover:bg-sky-50/50 border border-slate-200/70 transition-all flex flex-col justify-between space-y-3">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="text-xs font-bold text-sky-800 flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-sky-600" />
+                  5. Longitudinal Timeline
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Review patient health events, lab trends, and therapy modifications over time.
+              </p>
+            </div>
+            <button
+              onClick={() => onNavigateTab('timeline')}
+              className="w-full py-1.5 px-3 rounded-xl bg-white border border-slate-200 hover:border-sky-300 text-slate-800 text-xs font-bold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <span>Open Timeline</span>
+              <ArrowRight className="w-3.5 h-3.5 text-sky-600" />
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Pending Patient Access Requests */}
-      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-6 space-y-4">
+      <div id="pending-requests-section" className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-6 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
